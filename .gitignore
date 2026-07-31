@@ -1,0 +1,74 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+Thumbs.db
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code (local)
+.classpath
+.project
+.settings/
+.vscode/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+**/appsettings.Development.json
+**/secrets.json
+*.pfx
+*.pem
+
+# Flutter / Dart
+**/doc/api/
+.dart_tool/
+**/.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+**/build/
+flutter_*.png
+linked_*.ds
+unlinked.ds
+unlinked_spec.ds
+
+# Symbolication / obfuscation
+app.*.symbols
+app.*.map.json
+
+# Android build outputs
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+
+# Generated Dart
+*.g.dart
+*.freezed.dart
+
+# .NET / ASP.NET Core
+**/bin/
+**/obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.nupkg
+
+# Coverage
+coverage/
+lcov.info

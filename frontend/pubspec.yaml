@@ -1,0 +1,72 @@
+name: fiapp
+description: "FiApp - Fiados bajo control. App para gestionar fiados y abonos de tienda."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Routing
+  go_router: ^14.2.0
+
+  # Networking (preparado para futura API en ASP.NET Core)
+  dio: ^5.4.3+1
+
+  # Modelos inmutables / serialización
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Utilidades
+  intl: ^0.19.0
+  equatable: ^2.0.5
+
+  # Persistencia local ligera (sesión, preferencias)
+  shared_preferences: ^2.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+  # Generación de código para modelos
+  build_runner: ^2.4.11
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+
+flutter:
+  uses-material-design: true
+
+  # La app usa la tipografía "Inter" en todo el tema (ver lib/core/theme).
+  # Los archivos .ttf no se incluyen en este paquete para no inflar el
+  # proyecto con binarios de fuente. Para activarla:
+  #   1. Descarga la familia Inter (https://fonts.google.com/specimen/Inter)
+  #   2. Copia los .ttf a assets/fonts/
+  #   3. Descomenta el bloque `fonts:` de abajo
+  # Mientras tanto, Flutter usa la fuente por defecto de la plataforma y
+  # el nombre 'Inter' se ignora sin causar errores de compilación.
+  # fonts:
+  #   - family: Inter
+  #     fonts:
+  #       - asset: assets/fonts/Inter-Regular.ttf
+  #         weight: 400
+  #       - asset: assets/fonts/Inter-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Inter-SemiBold.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/Inter-Bold.ttf
+  #         weight: 700
+  #       - asset: assets/fonts/Inter-ExtraBold.ttf
+  #         weight: 800
+
+  assets:
+    - assets/images/logo.png

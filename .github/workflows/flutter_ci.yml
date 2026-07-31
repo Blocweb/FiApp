@@ -1,0 +1,34 @@
+name: FiApp CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  frontend:
+    name: Frontend (Flutter)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  backend-structure:
+    name: Backend structure check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify backend scaffold
+        run: |
+          test -f backend/README.md
+          test -d backend/src/FiApp.Api
+          test -d backend/tests/FiApp.Api.Tests
