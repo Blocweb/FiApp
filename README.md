@@ -7,7 +7,7 @@ Monorepo profesional para gestionar fiados y abonos de tienda.
 | Capa | Ubicación | Tecnología |
 |------|-----------|------------|
 | **Frontend** (UI móvil) | [`frontend/`](frontend/) | Flutter 3 / Dart 3 |
-| **Backend** (APIs) | [`backend/`](backend/) | ASP.NET Core (scaffold) |
+| **Backend** (APIs) | [`backend/`](backend/) | FastApi (Python/Pydactic) |
 | **Configuración** | [`config/`](config/) | Variables de entorno |
 | **Imágenes / fuentes** | [`frontend/assets/`](frontend/assets/) | PNG, TTF |
 | **Documentación** | [`docs/`](docs/) | Guías técnicas |
