@@ -1,5 +1,7 @@
 # FiApp — Fiados bajo control
 
+Apk para llevar control sobre deudas/fiados en tu negocio.
+
 Monorepo profesional para gestionar fiados y abonos de tienda.
 
 | Capa | Ubicación | Tecnología |
@@ -13,21 +15,21 @@ Monorepo profesional para gestionar fiados y abonos de tienda.
 
 ## Estructura del repositorio
 
-```
+```text
 FiApp/
-├── frontend/                 # App Flutter (parte visual + cliente API)
+├── frontend/
 │   ├── lib/
-│   │   ├── core/             # config, network, theme, widgets, router
-│   │   └── features/         # auth, home, clients, fiados, abonos, …
-│   ├── assets/images/        # Logo e imágenes
-│   ├── assets/fonts/         # Tipografías
-│   └── test/                 # Pruebas unitarias y de widgets
-├── backend/                  # API REST ASP.NET Core (en preparación)
+│   │   ├── core/
+│   │   └── features/
+│   ├── assets/images/
+│   ├── assets/fonts/
+│   └── test/
+├── backend/
 │   ├── src/FiApp.Api/
 │   └── tests/
-├── config/                   # Plantillas de entorno (.env.example)
-├── docs/                     # Documentación
-└── .github/workflows/        # Integración continua
+├── config/
+├── docs/
+└── .github/workflows/
 ```
 
 ## Inicio rápido (frontend)
@@ -44,19 +46,17 @@ flutter run
 | Rama | Uso |
 |------|-----|
 | `main` | Estable / listo para release |
-| `develop` | Integración continua de features |
+| `develop` | Integración continua |
 | `feature/*` | Nuevas funcionalidades |
 | `fix/*` | Correcciones |
-| `release/*` | Preparación de versiones |
+| `release/*` | Versiones |
 
-Ver [`docs/BRANCHING.md`](docs/BRANCHING.md).
+Ver `docs/BRANCHING.md`.
 
-## Arquitectura frontend
+## Arquitectura
 
-Clean Architecture por módulo (`presentation` / `domain` / `data`).
-Hoy los repositorios son **mock**; al conectar el backend solo se cambian
-las implementaciones en `data/` y los providers.
+Clean Architecture por módulos.
 
-## Licencia / equipo
+## Licencia
 
-Proyecto **Blocweb** — [github.com/Blocweb/FiApp](https://github.com/Blocweb/FiApp)
+Proyecto Blocweb.
