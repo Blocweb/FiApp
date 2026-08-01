@@ -61,11 +61,23 @@ class _NewClientScreenState extends ConsumerState<NewClientScreen> {
       lastMovement: 'Ahora',
     );
 
-    await ref.read(clientsProvider.notifier).addClient(newClient);
+    try {
+      await ref.read(clientsProvider.notifier).addClient(newClient);
 
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
-    context.pop();
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return;
+      context.pop();
+    } catch (e) {
+      // Revert success view and show error
+      if (!mounted) return;
+      setState(() {
+        _saved = false;
+      });
+      final message = e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creando cliente: $message')),
+      );
+    }
   }
 
   @override

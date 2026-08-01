@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fiapp/features/clients/data/repositories/client_repository_mock_impl.dart';
+import 'package:fiapp/features/clients/data/repositories/client_repository_remote_impl.dart';
 import 'package:fiapp/features/clients/domain/repositories/client_repository.dart';
 import 'package:fiapp/features/history/data/repositories/transaction_repository_mock_impl.dart';
 import 'package:fiapp/features/history/domain/repositories/transaction_repository.dart';
@@ -11,7 +12,7 @@ import 'package:fiapp/features/history/domain/repositories/transaction_repositor
 /// `ClientRepositoryRemoteImpl(ApiClient.instance.dio)` — ningún otro
 /// archivo de la capa de presentación necesita modificarse.
 final clientRepositoryProvider = Provider<ClientRepository>((ref) {
-  return ClientRepositoryMockImpl();
+  return ClientRepositoryRemoteImpl();
 });
 
 /// Provider del repositorio de transacciones (fiados y abonos).

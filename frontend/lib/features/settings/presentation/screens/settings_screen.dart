@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fiapp/core/router/app_router.dart';
 import 'package:fiapp/core/theme/app_colors.dart';
 import 'package:fiapp/core/widgets/app_badge.dart';
+import 'package:fiapp/features/auth/providers/auth_provider.dart';
 
 class _SettingsItem {
   final String icon;
@@ -72,7 +74,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  void _handleLogout() {
+  void _handleLogout() async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final authNotifier = container.read(authNotifierProvider.notifier);
+    await authNotifier.logout();
     context.go('/login');
   }
 

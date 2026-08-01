@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fiapp/core/theme/app_animations.dart';
 import 'package:fiapp/core/theme/app_colors.dart';
@@ -6,6 +7,7 @@ import 'package:fiapp/core/widgets/app_button.dart';
 import 'package:fiapp/core/widgets/app_card.dart';
 import 'package:fiapp/core/widgets/app_input.dart';
 import 'package:fiapp/core/widgets/app_top_bar.dart';
+import 'package:fiapp/features/auth/providers/auth_provider.dart';
 
 /// Pantalla de creación de cuenta. Réplica de `RegisterScreen` del
 /// prototipo original.
@@ -13,14 +15,14 @@ import 'package:fiapp/core/widgets/app_top_bar.dart';
 /// Nota de integración futura: [_handleRegister] debe llamar a
 /// `AuthRepository.register(...)` contra el futuro endpoint
 /// `POST /api/auth/register` de ASP.NET Core.
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
@@ -37,11 +39,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
+    final email = _emailController.text.trim();
+    final password = _passController.text;
+    final confirm = _confirmController.text;
+
+    if (email.isEmpty || password.isEmpty || confirm.isEmpty || _nameController.text.trim().isEmpty) {
+      _showMessage('Todos los campos son obligatorios.');
+      return;
+    }
+
+    if (password != confirm) {
+      _showMessage('Las contraseñas no coinciden.');
+      return;
+    }
+
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+
+    await ref.read(authNotifierProvider.notifier).register(
+          email: email,
+          password: password,
+        );
+
     if (!mounted) return;
+
+    final authState = ref.read(authNotifierProvider);
     setState(() => _loading = false);
+
+    if (authState.error != null) {
+      _showMessage(authState.error!);
+      return;
+    }
+
     context.go('/home');
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final hasScaffold = Scaffold.maybeOf(context) != null;
+    if (messenger != null && hasScaffold) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

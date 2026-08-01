@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fiapp/core/theme/app_colors.dart';
 import 'package:fiapp/core/widgets/app_badge.dart';
 import 'package:fiapp/core/widgets/app_button.dart';
 import 'package:fiapp/core/widgets/app_card.dart';
+import 'package:fiapp/features/profile/domain/entities/profile.dart';
+import 'package:fiapp/features/profile/presentation/providers/profile_provider.dart';
 import 'package:fiapp/features/settings/presentation/screens/profile_screen_helpers.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final TextEditingController _businessController;
   late final TextEditingController _emailController;
+  String? _syncedProfileId;
 
   @override
   void initState() {
@@ -34,17 +38,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
-        SnackBar(
-          content: const Text('Perfil actualizado correctamente'),
+        const SnackBar(
+          content: Text('Perfil actualizado correctamente'),
           backgroundColor: AppColors.green,
           behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
         ),
       );
   }
 
+  void _syncProfileData(Profile? profile) {
+    if (profile == null) {
+      if (_syncedProfileId != null) {
+        _syncedProfileId = null;
+        _businessController.text = 'Mi Tienda';
+        _emailController.text = 'mitienda@correo.com';
+      }
+      return;
+    }
+
+    if (_syncedProfileId != profile.id) {
+      _syncedProfileId = profile.id;
+      _businessController.text = profile.nombreNegocio;
+      _emailController.text = profile.email;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(profileProvider);
+    final profile = state.profile;
+    _syncProfileData(profile);
+
     return Container(
       color: AppColors.bg,
       child: ListView(
@@ -56,7 +81,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Material(
                   color: Colors.transparent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   child: InkWell(
                     onTap: () => Navigator.of(context).pop(),
                     borderRadius: BorderRadius.circular(12),
@@ -68,7 +94,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.arrow_back_ios_new, size: 16, color: AppColors.ink),
+                      child: const Icon(Icons.arrow_back_ios_new,
+                          size: 16, color: AppColors.ink),
                     ),
                   ),
                 ),
@@ -98,11 +125,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                       width: 56,
                       height: 56,
-                      decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
+                      decoration: const BoxDecoration(
+                          color: AppColors.blue, shape: BoxShape.circle),
                       alignment: Alignment.center,
-                      child: const Text(
-                        'MT',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 20, fontFamily: 'Inter'),
+                      child: Text(
+                        profile != null && profile.nombreNegocio.isNotEmpty
+                            ? profile.nombreNegocio
+                                .substring(0, 2)
+                                .toUpperCase()
+                            : 'MT',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                            fontFamily: 'Inter'),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -110,17 +146,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Mi Tienda',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink, fontFamily: 'Inter'),
+                          Text(
+                            profile?.nombreNegocio ?? 'Mi Tienda',
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.ink,
+                                fontFamily: 'Inter'),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
-                            'mitienda@correo.com',
-                            style: TextStyle(fontSize: 13, color: AppColors.muted, fontFamily: 'Inter'),
+                          Text(
+                            profile?.email ?? 'mitienda@correo.com',
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.muted,
+                                fontFamily: 'Inter'),
                           ),
                           const SizedBox(height: 8),
-                          AppBadge(text: 'Plan gratuito', color: AppColors.blue),
+                          const AppBadge(
+                              text: 'Plan gratuito', color: AppColors.blue),
                         ],
                       ),
                     ),
@@ -129,20 +173,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 20),
                 const Divider(color: AppColors.border, height: 1),
                 const SizedBox(height: 20),
-                Row(
-                  children: const [
+                const Row(
+                  children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Miembro desde',
-                            style: TextStyle(fontSize: 12, color: AppColors.muted, fontFamily: 'Inter'),
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.muted,
+                                fontFamily: 'Inter'),
                           ),
                           SizedBox(height: 6),
                           Text(
                             'Ene 2025',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink, fontFamily: 'Inter'),
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.ink,
+                                fontFamily: 'Inter'),
                           ),
                         ],
                       ),
@@ -153,12 +204,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Text(
                             'Plan',
-                            style: TextStyle(fontSize: 12, color: AppColors.muted, fontFamily: 'Inter'),
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.muted,
+                                fontFamily: 'Inter'),
                           ),
                           SizedBox(height: 6),
                           Text(
                             'Gratuito',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink, fontFamily: 'Inter'),
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.ink,
+                                fontFamily: 'Inter'),
                           ),
                         ],
                       ),
@@ -176,12 +234,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 const Text(
                   'Datos del negocio',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.muted, fontFamily: 'Inter', letterSpacing: 0.5),
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.muted,
+                      fontFamily: 'Inter',
+                      letterSpacing: 0.5),
                 ),
                 const SizedBox(height: 16),
-                ProfileField(label: 'Nombre del negocio', controller: _businessController),
+                ProfileField(
+                    label: 'Nombre del negocio',
+                    controller: _businessController),
                 const SizedBox(height: 16),
-                ProfileField(label: 'Correo electrónico', controller: _emailController, keyboardType: TextInputType.emailAddress),
+                ProfileField(
+                    label: 'Correo electrónico',
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress),
               ],
             ),
           ),

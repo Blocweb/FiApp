@@ -39,12 +39,18 @@ class ClientsNotifier extends StateNotifier<ClientsState> {
   }
 
   Future<void> loadClients() async {
+    if (!mounted) return;
+
     state = state.copyWith(isLoading: true, error: null);
     try {
       final repo = ref.read(clientRepositoryProvider);
       final clients = await repo.getClients();
+      if (!mounted) return;
+
       state = state.copyWith(clients: clients, isLoading: false);
     } catch (e) {
+      if (!mounted) return;
+
       state = state.copyWith(
         isLoading: false,
         error: 'No se pudieron cargar los clientes',
@@ -55,6 +61,8 @@ class ClientsNotifier extends StateNotifier<ClientsState> {
   Future<Client> addClient(Client client) async {
     final repo = ref.read(clientRepositoryProvider);
     final created = await repo.createClient(client);
+    if (!mounted) return created;
+
     state = state.copyWith(clients: [created, ...state.clients]);
     return created;
   }
@@ -68,6 +76,8 @@ class ClientsNotifier extends StateNotifier<ClientsState> {
   ) async {
     final repo = ref.read(clientRepositoryProvider);
     final updated = await repo.adjustBalance(clientId, delta, lastMovement);
+    if (!mounted) return updated;
+
     state = state.copyWith(
       clients: [
         for (final c in state.clients)

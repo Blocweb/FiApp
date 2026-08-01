@@ -22,6 +22,10 @@ dependencies:
   # Networking (preparado para futura API en ASP.NET Core)
   dio: ^5.4.3+1
 
+  # NUEVAS
+  supabase_flutter: ^2.9.1
+  flutter_dotenv: ^5.2.1
+
   # Modelos inmutables / serialización
   freezed_annotation: ^2.4.4
   json_annotation: ^4.9.0
@@ -69,4 +73,5 @@ flutter:
   #         weight: 800
 
   assets:
+    - .env
     - assets/images/logo.png
