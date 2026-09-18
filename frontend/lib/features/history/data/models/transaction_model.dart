@@ -1,5 +1,6 @@
 import 'package:fiapp/features/fiados/data/models/fiado_item_model.dart';
 import 'package:fiapp/features/history/domain/entities/transaction.dart';
+import 'package:intl/intl.dart';
 
 /// Modelo de datos de [Transaction].
 ///
@@ -32,6 +33,12 @@ class TransactionModel extends Transaction {
     required super.balanceAfter,
   });
 
+  static double _parseAmount(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
     return TransactionModel(
       id: json['id'] as String,
@@ -41,13 +48,35 @@ class TransactionModel extends Transaction {
           : TransactionType.abono,
       date: json['date'] as String,
       time: json['time'] as String,
-      amount: (json['amount'] as num).toDouble(),
+      amount: _parseAmount(json['amount']),
       items: (json['items'] as List<dynamic>?)
           ?.map((e) => FiadoItemModel.fromJson(e as Map<String, dynamic>))
           .toList(),
       paymentMethod: json['paymentMethod'] as String?,
       note: json['note'] as String?,
-      balanceAfter: (json['balanceAfter'] as num).toDouble(),
+      balanceAfter: _parseAmount(json['balanceAfter']),
+    );
+  }
+
+  factory TransactionModel.fromApiJson(Map<String, dynamic> json) {
+    final dateTime = DateTime.parse(json['fecha_hora'] as String).toLocal();
+    final apiItems = json['items'] as List<dynamic>? ?? const [];
+
+    return TransactionModel(
+      id: json['id'] as String,
+      clientId: json['cliente_id'] as String,
+      type: json['tipo'] == 'fiado'
+          ? TransactionType.fiado
+          : TransactionType.abono,
+      date: DateFormat('dd/MM/yyyy').format(dateTime),
+      time: DateFormat('HH:mm').format(dateTime),
+      amount: _parseAmount(json['monto']),
+      items: apiItems
+          .map((item) => FiadoItemModel.fromApiJson(item as Map<String, dynamic>))
+          .toList(),
+      paymentMethod: json['metodo_pago_id']?.toString(),
+      note: json['nota'] as String?,
+      balanceAfter: _parseAmount(json['saldo_posterior']),
     );
   }
 

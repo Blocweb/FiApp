@@ -107,7 +107,7 @@ create table public.productos (
 );
 
 
-comment on table public.productos is 
+comment on table public.productos is
 'Catálogo de productos disponibles para registrar fiados';
 
 
@@ -521,7 +521,7 @@ else
 
 if new.monto > saldo_actual then
 
-raise exception 
+raise exception
 'El abono supera la deuda actual';
 
 end if;
@@ -1011,6 +1011,16 @@ with check(owner_id = auth.uid());
 
 
 
+create policy clientes_delete_own
+
+on public.clientes
+
+for delete
+
+using(owner_id = auth.uid());
+
+
+
 
 
 -- =============================================================================
@@ -1047,6 +1057,16 @@ for update
 using(owner_id = auth.uid())
 
 with check(owner_id = auth.uid());
+
+
+
+create policy productos_delete_own
+
+on public.productos
+
+for delete
+
+using(owner_id = auth.uid());
 
 
 
@@ -1097,6 +1117,28 @@ and c.owner_id = auth.uid()
 
 
 
+create policy transacciones_update_own
+
+on public.transacciones
+
+for update
+
+using(owner_id = auth.uid())
+
+with check(owner_id = auth.uid());
+
+
+
+create policy transacciones_delete_own
+
+on public.transacciones
+
+for delete
+
+using(owner_id = auth.uid());
+
+
+
 
 
 -- =============================================================================
@@ -1140,6 +1182,82 @@ on public.fiado_items
 for insert
 
 with check
+
+(
+
+exists
+
+(
+
+select 1
+
+from public.transacciones t
+
+where t.id = transaccion_id
+
+and t.owner_id = auth.uid()
+
+)
+
+);
+
+
+
+create policy fiado_items_update_own
+
+on public.fiado_items
+
+for update
+
+using
+
+(
+
+exists
+
+(
+
+select 1
+
+from public.transacciones t
+
+where t.id = transaccion_id
+
+and t.owner_id = auth.uid()
+
+)
+
+)
+
+with check
+
+(
+
+exists
+
+(
+
+select 1
+
+from public.transacciones t
+
+where t.id = transaccion_id
+
+and t.owner_id = auth.uid()
+
+)
+
+);
+
+
+
+create policy fiado_items_delete_own
+
+on public.fiado_items
+
+for delete
+
+using
 
 (
 

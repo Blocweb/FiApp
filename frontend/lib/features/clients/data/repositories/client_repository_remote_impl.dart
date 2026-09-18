@@ -17,11 +17,9 @@ class ClientRepositoryRemoteImpl implements ClientRepository {
 
   @override
   Future<Client?> getClientById(String id) async {
-    // API currently exposes GET /clientes and GET /clientes/{id} not implemented in service
-    final all = await _service.getClients();
     try {
-      return all.firstWhere((c) => c.id == id);
-    } catch (_) {
+      return await _service.getClientById(id);
+    } on Exception {
       return null;
     }
   }
@@ -40,13 +38,7 @@ class ClientRepositoryRemoteImpl implements ClientRepository {
   }
 
   @override
-  Future<Client> adjustBalance(String clientId, double delta, String lastMovement) async {
-    final client = await getClientById(clientId);
-    if (client == null) throw StateError('Cliente no encontrado: $clientId');
-    final updated = client.copyWith(
-      balance: (client.balance + delta).toDouble(),
-      lastMovement: lastMovement,
-    );
-    return updateClient(updated);
+  Future<void> deleteClient(String id) async {
+    await _service.deleteClient(id);
   }
 }

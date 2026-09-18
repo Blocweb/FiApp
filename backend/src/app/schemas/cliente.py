@@ -10,7 +10,11 @@ class ClienteBase(BaseModel):
     telefono: Optional[str] = Field('', alias='phone', max_length=30)
     direccion: Optional[str] = Field('', alias='address', max_length=255)
     notas: Optional[str] = Field('', alias='notes', max_length=2000)
-    color_hex: Optional[str] = Field('#2563EB', alias='colorHex', min_length=7, max_length=7)
+    color_hex: Optional[str] = Field(
+        '#2563EB',
+        alias='colorHex',
+        pattern=r'^#[0-9A-Fa-f]{6}$',
+    )
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, extra='ignore')
 
@@ -19,12 +23,18 @@ class ClienteCreate(ClienteBase):
     pass
 
 
-class ClienteUpdate(ClienteBase):
-    nombre: Optional[str]
-    telefono: Optional[str]
-    direccion: Optional[str]
-    notas: Optional[str]
-    color_hex: Optional[str]
+class ClienteUpdate(BaseModel):
+    nombre: Optional[str] = Field(None, alias='name', max_length=150)
+    telefono: Optional[str] = Field(None, alias='phone', max_length=30)
+    direccion: Optional[str] = Field(None, alias='address', max_length=255)
+    notas: Optional[str] = Field(None, alias='notes', max_length=2000)
+    color_hex: Optional[str] = Field(
+        None,
+        alias='colorHex',
+        pattern=r'^#[0-9A-Fa-f]{6}$',
+    )
+
+    model_config = ConfigDict(populate_by_name=True, extra='ignore')
 
 
 class ClienteResponse(ClienteBase):

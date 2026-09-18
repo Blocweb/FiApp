@@ -56,7 +56,7 @@ class _RegisterAbonoScreenState extends ConsumerState<RegisterAbonoScreen> {
           note: _noteController.text,
           newBalanceAfter: newBalance,
         );
-    await ref.read(clientsProvider.notifier).adjustBalance(client.id, -_amount, 'Ahora');
+    await ref.read(clientsProvider.notifier).refreshClient(client.id);
 
     await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;

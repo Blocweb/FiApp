@@ -22,13 +22,20 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
-  backend-structure:
-    name: Backend structure check
+  backend:
+    name: Backend (FastAPI)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify backend scaffold
-        run: |
-          test -f backend/README.md
-          test -d backend/src/FiApp.Api
-          test -d backend/tests/FiApp.Api.Tests
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install backend dependencies
+        working-directory: backend
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Compile backend
+        working-directory: backend
+        run: python -m compileall -q src main.py app
+      - name: Run backend tests
+        working-directory: backend
+        run: pytest -q

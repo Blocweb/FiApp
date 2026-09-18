@@ -10,6 +10,7 @@ from src.app.services.cliente_service import (
     get_cliente_by_id,
     get_clientes,
     update_cliente,
+    delete_cliente,
 )
 
 router = APIRouter(prefix="/clientes", tags=["clientes"])
@@ -75,3 +76,20 @@ async def actualizar_cliente(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
     cliente = await update_cliente(db, cliente=cliente, cliente_in=cliente_in)
     return _to_cliente_response(cliente)
+
+
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_cliente(
+    id: str,
+    db: AsyncSession = Depends(get_db),
+    profile=Depends(get_current_profile),
+):
+    cliente = await get_cliente_by_id(db, cliente_id=id, owner_id=str(profile.id))
+    if cliente is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+    if cliente.saldo > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede eliminar un cliente con saldo pendiente o deuda activa.",
+        )
+    await delete_cliente(db, cliente=cliente)

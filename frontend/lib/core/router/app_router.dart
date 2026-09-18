@@ -86,7 +86,10 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.verifyCode,
-      builder: (context, state) => const VerifyCodeScreen(),
+      builder: (context, state) {
+        final email = state.extra as String?;
+        return VerifyCodeScreen(email: email);
+      },
     ),
     GoRoute(
       path: AppRoutes.newPassword,

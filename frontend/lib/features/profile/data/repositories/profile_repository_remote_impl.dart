@@ -11,7 +11,13 @@ class ProfileRepositoryRemoteImpl implements ProfileRepository {
 
   @override
   Future<Profile> getProfile() async {
-    final response = await _dio.get('/api/profile');
+    final response = await _dio.get('/perfil/');
+    return ProfileModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Profile> updateProfile(Map<String, dynamic> data) async {
+    final response = await _dio.put('/perfil/', data: data);
     return ProfileModel.fromJson(response.data as Map<String, dynamic>);
   }
 }

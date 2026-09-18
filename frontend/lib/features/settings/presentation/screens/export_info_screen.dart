@@ -1,130 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fiapp/core/theme/app_colors.dart';
-import 'package:fiapp/core/widgets/app_button.dart';
 import 'package:fiapp/core/widgets/app_card.dart';
 
-class ExportInfoScreen extends StatefulWidget {
+/// Pantalla de exportación de información.
+///
+/// La funcionalidad de descarga de archivos (Excel / PDF) está planificada
+/// para una versión futura. Actualmente muestra un aviso "Próximamente".
+class ExportInfoScreen extends StatelessWidget {
   const ExportInfoScreen({super.key});
-
-  @override
-  State<ExportInfoScreen> createState() => _ExportInfoScreenState();
-}
-
-class _ExportInfoScreenState extends State<ExportInfoScreen> {
-  String _selectedFormat = 'excel';
-  String _selectedScope = 'all';
-  bool _submitted = false;
-
-  void _selectFormat(String format) {
-    setState(() {
-      _selectedFormat = format;
-    });
-  }
-
-  void _selectScope(String scope) {
-    setState(() {
-      _selectedScope = scope;
-    });
-  }
-
-  void _handleExport() {
-    setState(() {
-      _submitted = true;
-    });
-  }
-
-  void _handleExportAgain() {
-    setState(() {
-      _submitted = false;
-    });
-  }
-
-  Widget _buildSelectableCard({
-    required String title,
-    String? subtitle,
-    required bool selected,
-    required VoidCallback onTap,
-    Widget? icon,
-  }) {
-    return AppCard(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-      backgroundColor: selected ? AppColors.blueLight : AppColors.card,
-      border: Border.all(color: selected ? AppColors.blue : AppColors.border),
-      child: Row(
-        children: [
-          if (icon != null) icon,
-          if (icon != null) const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? AppColors.blue : AppColors.ink,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.muted,
-                      fontFamily: 'Inter',
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Icon(
-            selected ? Icons.radio_button_checked : Icons.radio_button_off,
-            color: selected ? AppColors.blue : AppColors.muted,
-            size: 18,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryTile(String label, String value) {
-    return Expanded(
-      child: AppCard(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
-        backgroundColor: AppColors.card,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.muted,
-                fontFamily: 'Inter',
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: AppColors.ink,
-                fontFamily: 'Inter',
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +17,7 @@ class _ExportInfoScreenState extends State<ExportInfoScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
         children: [
+          // Header
           Row(
             children: [
               Material(
@@ -167,190 +52,97 @@ class _ExportInfoScreenState extends State<ExportInfoScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 40),
+
+          // Próximamente card
           AppCard(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: AppColors.blueLight,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.upload_file_rounded, size: 40, color: AppColors.blue),
+                ),
+                const SizedBox(height: 24),
                 const Text(
-                  'Resumen de datos',
+                  'Próximamente',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.muted,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
                     fontFamily: 'Inter',
-                    letterSpacing: 0.4,
                   ),
                 ),
-                const SizedBox(height: 18),
-                Row(
+                const SizedBox(height: 12),
+                const Text(
+                  'La exportación de tus datos a Excel y PDF estará disponible en una versión próxima de FiApp.\n\nSeguimos trabajando para ti. 🚀',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.muted,
+                    fontFamily: 'Inter',
+                    height: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Row(
                   children: [
-                    _buildSummaryTile('Clientes', '6'),
-                    const SizedBox(width: 12),
-                    _buildSummaryTile('Con deuda', '4'),
-                    const SizedBox(width: 12),
-                    _buildSummaryTile('Movimientos', '8'),
+                    Expanded(
+                      child: _FeaturePill(icon: Icons.grid_on, label: 'Excel (.xlsx)', color: AppColors.blue),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: _FeaturePill(icon: Icons.picture_as_pdf, label: 'PDF', color: AppColors.red),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          AppCard(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'FORMATO DE EXPORTACIÓN',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.muted,
-                    fontFamily: 'Inter',
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildSelectableCard(
-                  title: 'Excel (.xlsx)',
-                  subtitle: 'Compatible con Microsoft Excel y Google Sheets',
-                  selected: _selectedFormat == 'excel',
-                  icon: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: AppColors.blueLight,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.grid_on, color: AppColors.blue),
-                  ),
-                  onTap: () => _selectFormat('excel'),
-                ),
-                const SizedBox(height: 12),
-                _buildSelectableCard(
-                  title: 'PDF',
-                  subtitle: 'Ideal para imprimir o enviar por WhatsApp',
-                  selected: _selectedFormat == 'pdf',
-                  icon: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: AppColors.borderLight,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.picture_as_pdf, color: AppColors.red),
-                  ),
-                  onTap: () => _selectFormat('pdf'),
-                ),
-              ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FeaturePill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _FeaturePill({required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: color,
+              fontFamily: 'Inter',
             ),
           ),
-          const SizedBox(height: 16),
-          AppCard(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  '¿QUÉ EXPORTAR?',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.muted,
-                    fontFamily: 'Inter',
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildSelectableCard(
-                  title: 'Todos los clientes',
-                  subtitle: '6 registros',
-                  selected: _selectedScope == 'all',
-                  onTap: () => _selectScope('all'),
-                ),
-                const SizedBox(height: 12),
-                _buildSelectableCard(
-                  title: 'Solo clientes con deuda',
-                  subtitle: '4 registros',
-                  selected: _selectedScope == 'debt',
-                  onTap: () => _selectScope('debt'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          if (!_submitted)
-            AppButton(
-              label: 'Exportar ${_selectedFormat == 'excel' ? 'Excel (.xlsx)' : 'PDF'}',
-              fullWidth: true,
-              onPressed: _handleExport,
-            )
-          else
-            AppCard(
-              padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: AppColors.greenLight,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.download_done, size: 32, color: AppColors.green),
-                  ),
-                  const SizedBox(height: 22),
-                  const Text(
-                    '¡Exportación lista!',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink,
-                      fontFamily: 'Inter',
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Tu archivo ${_selectedFormat == 'excel' ? 'Excel (.xlsx)' : 'PDF'} con ${_selectedScope == 'all' ? '6 registros' : '4 registros'} está listo.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.muted,
-                      fontFamily: 'Inter',
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  AppButton(
-                    label: 'Descargar archivo',
-                    fullWidth: true,
-                    onPressed: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: GestureDetector(
-                      onTap: _handleExportAgain,
-                      child: const Text(
-                        'Exportar de nuevo',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.blue,
-                          fontFamily: 'Inter',
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );

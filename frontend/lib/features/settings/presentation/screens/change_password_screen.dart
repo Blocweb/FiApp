@@ -162,10 +162,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         child: const Icon(Icons.lock_outline, size: 22, color: Colors.white),
                       ),
                       const SizedBox(width: 16),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Text(
                               'Por seguridad, te pedimos confirmar tu contraseña actual antes de establecer una nueva.',
                               style: TextStyle(

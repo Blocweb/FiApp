@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fiapp/core/theme/app_colors.dart';
+import 'package:fiapp/core/utils/formatters.dart';
 import 'package:fiapp/core/widgets/app_card.dart';
+import 'package:fiapp/features/reportes/domain/entities/reporte.dart';
+import 'package:fiapp/features/reportes/presentation/providers/reportes_provider.dart';
 
-class ReportesScreen extends StatefulWidget {
+
+class ReportesScreen extends ConsumerStatefulWidget {
   const ReportesScreen({super.key});
 
   @override
-  State<ReportesScreen> createState() => _ReportesScreenState();
+  ConsumerState<ReportesScreen> createState() => _ReportesScreenState();
 }
 
-class _ReportesScreenState extends State<ReportesScreen> {
-  String _activeRange = 'Mes';
-
+class _ReportesScreenState extends ConsumerState<ReportesScreen> {
   Widget _buildStatCard(String title, String amount, String subtitle, Color amountColor) {
     return Expanded(
       child: AppCard(
@@ -53,52 +56,38 @@ class _ReportesScreenState extends State<ReportesScreen> {
     );
   }
 
-  Widget _buildRangeButton(String label) {
-    final selected = label == _activeRange;
+  Widget _buildSummaryValue(String label, String value) {
     return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _activeRange = label),
-        child: Container(
-          height: 38,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.card : AppColors.bg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? AppColors.blue : AppColors.border),
-          ),
-          alignment: Alignment.center,
-          child: Text(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
             label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: selected ? AppColors.blue : AppColors.muted,
-              fontFamily: 'Inter',
-            ),
+            style: const TextStyle(fontSize: 12, color: AppColors.muted, fontFamily: 'Inter'),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChartBar({required double height, required Color color}) {
-    return Flexible(
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
-        ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink, fontFamily: 'Inter'),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(reportesProvider);
+    final resumen = state.resumen;
+    final evolucion = state.evolucion;
+
     return Container(
       color: AppColors.bg,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
         children: [
+          // Header
           Row(
             children: [
               Material(
@@ -131,188 +120,224 @@ class _ReportesScreenState extends State<ReportesScreen> {
                   ),
                 ),
               ),
+              if (state.isLoading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.blue),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: AppColors.muted, size: 20),
+                  onPressed: () => ref.read(reportesProvider.notifier).load(),
+                  tooltip: 'Actualizar',
+                ),
             ],
           ),
           const SizedBox(height: 18),
+
+          // Error banner
+          if (state.error != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.redLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.red, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      state.error!,
+                      style: const TextStyle(fontSize: 13, color: AppColors.red, fontFamily: 'Inter'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Stats cards
           AppCard(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
-                  children: [
-                    _buildRangeButton('Semana'),
-                    const SizedBox(width: 10),
-                    _buildRangeButton('Mes'),
-                    const SizedBox(width: 10),
-                    _buildRangeButton('Total'),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStatCard('Total fiado', ' 150.000', '5 fiados', AppColors.red),
+                    _buildStatCard(
+                      'Total por cobrar',
+                      resumen != null ? Formatters.currency(resumen.totalPorCobrar) : '—',
+                      resumen != null ? '${resumen.clientesConDeuda} clientes' : '—',
+                      AppColors.red,
+                    ),
                     const SizedBox(width: 12),
-                    _buildStatCard('Total cobrado', ' 110.000', '3 abonos', AppColors.green),
+                    _buildStatCard(
+                      'Cobros hoy',
+                      resumen != null ? Formatters.currency(resumen.cobrosHoy) : '—',
+                      'Abonos del día',
+                      AppColors.green,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStatCard('Por cobrar', ' 255.500', '4 clientes', AppColors.warn),
+                    _buildStatCard(
+                      'Total clientes',
+                      resumen != null ? '${resumen.totalClientes}' : '—',
+                      'Activos',
+                      AppColors.blue,
+                    ),
                     const SizedBox(width: 12),
-                    _buildStatCard('Efectividad', '73%', 'Cobros vs fiados', AppColors.blue),
+                    _buildStatCard(
+                      'Con deuda activa',
+                      resumen != null ? '${resumen.clientesConDeuda}' : '—',
+                      'Saldo > 0',
+                      AppColors.warn,
+                    ),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          AppCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Evolución mensual',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                    fontFamily: 'Inter',
+
+          // Evolución mensual
+          if (evolucion.isNotEmpty) ...[
+            AppCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Evolución mensual',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                      fontFamily: 'Inter',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildChartBar(height: 70, color: AppColors.red.withOpacity(0.8))),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildChartBar(height: 110, color: AppColors.green.withOpacity(0.8))),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildChartBar(height: 90, color: AppColors.red.withOpacity(0.5))),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildChartBar(height: 120, color: AppColors.green.withOpacity(0.5))),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Fiado', style: TextStyle(fontSize: 12, color: AppColors.red, fontFamily: 'Inter')),
-                    Text('Abono', style: TextStyle(fontSize: 12, color: AppColors.green, fontFamily: 'Inter')),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          AppCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Mayores deudas',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                    fontFamily: 'Inter',
+                  const SizedBox(height: 16),
+                  _EvolucionChart(evolucion: evolucion),
+                  const SizedBox(height: 10),
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(children: [
+                        CircleAvatar(radius: 5, backgroundColor: AppColors.red),
+                        SizedBox(width: 6),
+                        Text('Fiado', style: TextStyle(fontSize: 12, color: AppColors.red, fontFamily: 'Inter')),
+                      ]),
+                      Row(children: [
+                        CircleAvatar(radius: 5, backgroundColor: AppColors.green),
+                        SizedBox(width: 6),
+                        Text('Abono', style: TextStyle(fontSize: 12, color: AppColors.green, fontFamily: 'Inter')),
+                      ]),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                _buildDebtItem(1, 'Ana Martínez', ' 125.000', AppColors.red),
-                const SizedBox(height: 12),
-                _buildDebtItem(2, 'Jorge Moreno', ' 65.000', AppColors.green),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          AppCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Resumen de clientes',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                    fontFamily: 'Inter',
+            const SizedBox(height: 16),
+          ],
+
+          // Resumen de clientes
+          if (resumen != null)
+            AppCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Resumen de clientes',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                      fontFamily: 'Inter',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    _buildSummaryValue('Total de clientes', '6'),
-                    const SizedBox(width: 14),
-                    _buildSummaryValue('Con deuda activa', '4'),
-                  ],
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      _buildSummaryValue('Total de clientes', '${resumen.totalClientes}'),
+                      const SizedBox(width: 14),
+                      _buildSummaryValue('Con deuda activa', '${resumen.clientesConDeuda}'),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildDebtItem(int rank, String name, String amount, Color lineColor) {
-    return Row(
+/// Widget interno para renderizar el gráfico de barras de evolución.
+class _EvolucionChart extends StatelessWidget {
+  final List<EvolucionMensual> evolucion;
+
+  const _EvolucionChart({required this.evolucion});
+
+  @override
+  Widget build(BuildContext context) {
+    // Tomamos los últimos 6 meses
+    final items = evolucion.length > 6 ? evolucion.sublist(evolucion.length - 6) : evolucion;
+    final maxVal = items.fold<double>(1, (prev, e) {
+      final m = e.totalFiado > e.totalAbono ? e.totalFiado : e.totalAbono;
+      return m > prev ? m : prev;
+    });
+
+    return Column(
       children: [
-        Container(
-          width: 26,
-          height: 26,
-          decoration: BoxDecoration(
-            color: AppColors.blueLight,
-            borderRadius: BorderRadius.circular(10),
+        SizedBox(
+          height: 120,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: items.expand((e) {
+              final fiadoH = maxVal > 0 ? (e.totalFiado / maxVal) * 100 : 0.0;
+              final abonoH = maxVal > 0 ? (e.totalAbono / maxVal) * 100 : 0.0;
+              return [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Container(
+                        height: fiadoH,
+                        decoration: BoxDecoration(
+                          color: AppColors.red.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        height: abonoH,
+                        decoration: BoxDecoration(
+                          color: AppColors.green.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        Formatters.shortMonth(e.mes),
+                        style: const TextStyle(fontSize: 10, color: AppColors.muted, fontFamily: 'Inter'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ];
+            }).toList(),
           ),
-          alignment: Alignment.center,
-          child: Text(
-            '$rank',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.blue, fontFamily: 'Inter'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            name,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.ink, fontFamily: 'Inter'),
-          ),
-        ),
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: lineColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          amount,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.red, fontFamily: 'Inter'),
         ),
       ],
-    );
-  }
-
-  Widget _buildSummaryValue(String label, String value) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: AppColors.muted, fontFamily: 'Inter'),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink, fontFamily: 'Inter'),
-          ),
-        ],
-      ),
     );
   }
 }

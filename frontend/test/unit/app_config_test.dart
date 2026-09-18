@@ -5,8 +5,7 @@ void main() {
   group('AppConfig', () {
     test('valores por defecto de desarrollo', () {
       expect(AppConfig.environment, 'development');
-      expect(AppConfig.apiBaseUrl, 'https://localhost:5001/api');
-      expect(AppConfig.useMockRepositories, isTrue);
+      expect(AppConfig.apiBaseUrl, 'http://10.0.2.2:8000');
       expect(AppConfig.isDevelopment, isTrue);
     });
   });

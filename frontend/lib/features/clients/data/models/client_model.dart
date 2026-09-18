@@ -2,14 +2,11 @@ import 'package:fiapp/features/clients/domain/entities/client.dart';
 
 /// Modelo de datos de [Client].
 ///
-/// Mapea el JSON que devolverá el futuro endpoint de ASP.NET Core
-/// (`GET /api/clients`, `POST /api/clients`, etc). Mientras el backend no
+/// Mapea el JSON de la API FastAPI (`GET /clientes/`, `POST /clientes/`). Mientras el backend no
 /// exista, este mismo modelo se construye a partir de los datos mock,
 /// manteniendo la estructura que tendrá la respuesta real de la API.
 ///
-/// Convención de nombres esperada del backend en C# (PascalCase / camelCase
-/// según serializador): se asume camelCase estándar de ASP.NET Core con
-/// System.Text.Json (opciones por defecto de .NET 8), es decir:
+/// La API usa nombres camelCase para sus contratos de cliente:
 /// ```json
 /// {
 ///   "id": "1",
@@ -19,7 +16,7 @@ import 'package:fiapp/features/clients/domain/entities/client.dart';
 ///   "notes": "Cliente frecuente",
 ///   "colorHex": "#8B5CF6",
 ///   "balance": 47500.0,
-///   "lastMovement": "Hace 2 días"
+///   "lastMovement": "2023-10-25T14:30:00Z"
 /// }
 /// ```
 class ClientModel extends Client {
@@ -43,20 +40,19 @@ class ClientModel extends Client {
       notes: json['notes'] as String? ?? '',
       color: _colorFromHex(json['colorHex'] as String? ?? '#2563EB'),
       balance: (json['balance'] as num?)?.toDouble() ?? 0,
-      lastMovement: json['lastMovement'] as String? ?? '',
+      lastMovement: json['lastMovement'] != null
+          ? DateTime.tryParse(json['lastMovement'].toString())
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
       'name': name,
       'phone': phone,
       'address': address,
       'notes': notes,
       'colorHex': _colorToHex(color),
-      'balance': balance,
-      'lastMovement': lastMovement,
     };
   }
 

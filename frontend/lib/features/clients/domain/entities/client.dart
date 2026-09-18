@@ -17,8 +17,8 @@ class Client extends Equatable {
   /// Saldo pendiente que el cliente debe a la tienda.
   final double balance;
 
-  /// Texto descriptivo del último movimiento (ej: "Hace 2 días", "Hoy").
-  final String lastMovement;
+  /// Fecha del último movimiento.
+  final DateTime? lastMovement;
 
   const Client({
     required this.id,
@@ -39,7 +39,7 @@ class Client extends Equatable {
     String? notes,
     int? color,
     double? balance,
-    String? lastMovement,
+    DateTime? lastMovement,
   }) {
     return Client(
       id: id ?? this.id,

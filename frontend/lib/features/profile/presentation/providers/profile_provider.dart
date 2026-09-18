@@ -78,6 +78,32 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       );
     }
   }
+
+  Future<bool> updateProfile({
+    String? nombreNegocio,
+    bool? modoOscuro,
+    bool? respaldoNube,
+  }) async {
+    final Map<String, dynamic> data = {};
+    if (nombreNegocio != null) data['nombre_negocio'] = nombreNegocio;
+    if (modoOscuro != null) data['modo_oscuro'] = modoOscuro;
+    if (respaldoNube != null) data['respaldo_nube'] = respaldoNube;
+
+    try {
+      final profile = await _repository.updateProfile(data);
+      if (!mounted) return false;
+      state = state.copyWith(profile: profile);
+      return true;
+    } catch (error) {
+      logSupabaseSessionSnapshot(
+        'profileProvider.updateProfile.error',
+        extra: {'error': error},
+      );
+      if (!mounted) return false;
+      state = state.copyWith(error: 'No se pudo actualizar el perfil.');
+      return false;
+    }
+  }
 }
 
 final profileProvider =

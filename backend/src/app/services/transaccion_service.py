@@ -1,14 +1,36 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.app.models.cliente import Cliente
 from src.app.models.fiado_item import FiadoItem
+from src.app.models.metodo_pago import MetodoPago
 from src.app.models.transaccion import Transaccion
 from src.app.schemas.transaccion import TransaccionAbonoCreate, TransaccionFiadoCreate
+
+
+def _transaction_query(owner_id: str):
+    return (
+        select(Transaccion)
+        .where(Transaccion.owner_id == owner_id, Transaccion.deleted_at.is_(None))
+        .options(selectinload(Transaccion.fiado_items))
+        .order_by(Transaccion.created_at.desc())
+    )
+
+
+async def _get_transaction_by_id(
+    db: AsyncSession,
+    transaction_id: str,
+    owner_id: str,
+) -> Transaccion:
+    result = await db.execute(
+        _transaction_query(owner_id).where(Transaccion.id == transaction_id)
+    )
+    return result.scalar_one()
 
 
 async def get_transacciones_por_cliente(
@@ -16,13 +38,14 @@ async def get_transacciones_por_cliente(
     cliente_id: str,
     owner_id: str,
 ) -> list[Transaccion]:
-    query = (
-        select(Transaccion)
-        .where(Transaccion.cliente_id == cliente_id, Transaccion.owner_id == owner_id)
-        .options(selectinload(Transaccion.fiado_items))
-        .order_by(Transaccion.created_at.desc())
+    result = await db.execute(
+        _transaction_query(owner_id).where(Transaccion.cliente_id == cliente_id)
     )
-    result = await db.execute(query)
+    return result.scalars().all()
+
+
+async def get_transacciones(db: AsyncSession, owner_id: str) -> list[Transaccion]:
+    result = await db.execute(_transaction_query(owner_id))
     return result.scalars().all()
 
 
@@ -32,29 +55,34 @@ async def create_fiado(
     cliente: Cliente,
     transaccion_in: TransaccionFiadoCreate,
 ) -> Transaccion:
-    monto = Decimal(str(transaccion_in.monto))
     transaccion = Transaccion(
         owner_id=owner_id,
         cliente_id=cliente.id,
         tipo="fiado",
-        monto=monto,
+        monto=transaccion_in.monto,
+        nota=transaccion_in.nota,
     )
-    db.add(transaccion)
-    await db.flush()
+    try:
+        db.add(transaccion)
+        await db.flush()
 
-    for item_in in transaccion_in.items:
-        item = FiadoItem(
-            transaccion_id=transaccion.id,
-            producto_id=item_in.producto_id,
-            nombre_producto=item_in.nombre_producto,
-            cantidad=item_in.cantidad,
-            precio_unitario=Decimal(str(item_in.precio_unitario)),
-        )
-        db.add(item)
+        for item_in in transaccion_in.items:
+            db.add(
+                FiadoItem(
+                    transaccion_id=transaccion.id,
+                    producto_id=item_in.producto_id,
+                    nombre_producto=item_in.nombre_producto,
+                    cantidad=item_in.cantidad,
+                    precio_unitario=item_in.precio_unitario,
+                )
+            )
 
-    await db.commit()
-    await db.refresh(transaccion)
-    return transaccion
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
+
+    return await _get_transaction_by_id(db, str(transaccion.id), owner_id)
 
 
 async def create_abono(
@@ -63,11 +91,25 @@ async def create_abono(
     cliente: Cliente,
     transaccion_in: TransaccionAbonoCreate,
 ) -> Transaccion:
-    monto = Decimal(str(transaccion_in.monto))
-    if monto <= 0:
+    monto = transaccion_in.monto
+    if monto > Decimal(cliente.saldo):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El monto de abono debe ser mayor que cero.",
+            detail="El abono no puede superar la deuda actual.",
+        )
+
+    method_query = select(MetodoPago).where(MetodoPago.activo.is_(True))
+    if transaccion_in.metodo_pago_id is not None:
+        method_query = method_query.where(MetodoPago.id == transaccion_in.metodo_pago_id)
+    else:
+        method_query = method_query.where(
+            MetodoPago.nombre == transaccion_in.metodo_pago_nombre
+        )
+    payment_method = (await db.execute(method_query)).scalar_one_or_none()
+    if payment_method is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Método de pago inválido o inactivo.",
         )
 
     transaccion = Transaccion(
@@ -75,10 +117,14 @@ async def create_abono(
         cliente_id=cliente.id,
         tipo="abono",
         monto=monto,
-        metodo_pago_id=transaccion_in.metodo_pago_id,
+        metodo_pago_id=payment_method.id,
+        nota=transaccion_in.nota,
     )
-    db.add(transaccion)
+    try:
+        db.add(transaccion)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
 
-    await db.commit()
-    await db.refresh(transaccion)
-    return transaccion
+    return await _get_transaction_by_id(db, str(transaccion.id), owner_id)

@@ -1,38 +1,40 @@
-﻿from fastapi import FastAPI, Request
+import logging
+
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.app.core.config import get_settings
+from src.app.database.connection import get_db
 from src.app.routers.clientes import router as clientes_router
+from src.app.routers.perfil import router as perfil_router
 from src.app.routers.reportes import router as reportes_router
 from src.app.routers.transacciones import router as transacciones_router
-from src.app.routers.perfil import router as perfil_router
-from src.app.routers.api.profile import router as api_profile_router
+
+logger = logging.getLogger(__name__)
+settings = get_settings()
 
 app = FastAPI(title="FiApp API", version="1.0.0")
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    print('Request validation failed:')
-    print('URL:', request.url)
-    try:
-        body = await request.json()
-        print('Body:', body)
-    except Exception:
-        print('Body: <unreadable>')
-    print('Errors:', exc.errors())
-    return JSONResponse(
-        status_code=422,
-        content={
-            'detail': exc.errors(),
-            'body': body if 'body' in locals() else None,
-        },
+    logger.info(
+        "Validation rejected for %s %s (%s errors)",
+        request.method,
+        request.url.path,
+        len(exc.errors()),
     )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.allowed_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,9 +44,21 @@ app.include_router(clientes_router)
 app.include_router(transacciones_router)
 app.include_router(reportes_router)
 app.include_router(perfil_router)
-app.include_router(api_profile_router)
-
 
 @app.get("/")
 async def root():
     return {"message": "FiApp API funcionando"}
+
+
+@app.get("/health", tags=["health"])
+async def healthcheck(db: AsyncSession = Depends(get_db)):
+    try:
+        await db.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        logger.warning("Database health check failed: %s", exc.__class__.__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable",
+        ) from None
+
+    return {"status": "ok"}

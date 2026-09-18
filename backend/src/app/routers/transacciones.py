@@ -12,10 +12,19 @@ from src.app.services.cliente_service import get_cliente_by_id
 from src.app.services.transaccion_service import (
     create_abono,
     create_fiado,
+    get_transacciones,
     get_transacciones_por_cliente,
 )
 
 router = APIRouter(prefix="/transacciones", tags=["transacciones"])
+
+
+@router.get("/", response_model=list[TransaccionResponse])
+async def listar_transacciones(
+    db: AsyncSession = Depends(get_db),
+    profile=Depends(get_current_profile),
+):
+    return await get_transacciones(db, owner_id=str(profile.id))
 
 
 @router.post("/fiado", response_model=TransaccionResponse, status_code=status.HTTP_201_CREATED)
@@ -50,5 +59,8 @@ async def transacciones_por_cliente(
     db: AsyncSession = Depends(get_db),
     profile=Depends(get_current_profile),
 ):
+    cliente = await get_cliente_by_id(db, cliente_id=cliente_id, owner_id=str(profile.id))
+    if cliente is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
     transacciones = await get_transacciones_por_cliente(db, cliente_id=cliente_id, owner_id=str(profile.id))
     return transacciones

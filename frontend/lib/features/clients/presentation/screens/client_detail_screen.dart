@@ -9,6 +9,7 @@ import 'package:fiapp/core/widgets/app_card.dart';
 import 'package:fiapp/features/clients/domain/entities/client.dart';
 import 'package:fiapp/features/history/domain/entities/transaction.dart';
 import 'package:fiapp/features/history/presentation/providers/transactions_provider.dart';
+import 'package:fiapp/features/clients/presentation/providers/clients_provider.dart';
 
 /// Pantalla de detalle de un cliente: header azul con saldo, acciones
 /// rápidas (Fiado / Abono), dirección, notas e historial en formato
@@ -35,24 +36,94 @@ class ClientDetailScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Material(
-                  color: Colors.transparent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  child: InkWell(
-                    onTap: () => context.pop(),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Material(
+                      color: Colors.transparent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      child: InkWell(
+                        onTap: () => context.pop(),
                         borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
+                        ),
                       ),
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
                     ),
-                  ),
+                    Material(
+                      color: Colors.transparent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      child: InkWell(
+                        onTap: () async {
+                          if (client.balance > 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'No se puede eliminar a ${client.name} porque tiene una deuda activa de ${Formatters.currency(client.balance)}.',
+                                  style: const TextStyle(fontFamily: 'Inter'),
+                                ),
+                                backgroundColor: AppColors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Eliminar cliente', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold)),
+                              content: Text(
+                                '¿Estás seguro de eliminar a ${client.name}? Esta acción no se puede deshacer.',
+                                style: const TextStyle(fontFamily: 'Inter'),
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar', style: TextStyle(color: Colors.red))),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            try {
+                              await ref.read(clientsProvider.notifier).deleteClient(client.id);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cliente eliminado')));
+                                context.pop();
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error al eliminar: $e'),
+                                    backgroundColor: AppColors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.delete_outline, size: 18, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 Row(
                   children: [

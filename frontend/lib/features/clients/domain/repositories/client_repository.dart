@@ -18,7 +18,6 @@ abstract class ClientRepository {
   /// Actualiza los datos de un cliente existente.
   Future<Client> updateClient(Client client);
 
-  /// Ajusta el saldo de un cliente sumando [delta] (positivo para fiado,
-  /// negativo para abono) y actualiza su `lastMovement`.
-  Future<Client> adjustBalance(String clientId, double delta, String lastMovement);
+  /// Elimina un cliente lógicamente.
+  Future<void> deleteClient(String id);
 }

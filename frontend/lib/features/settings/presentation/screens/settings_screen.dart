@@ -78,6 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final container = ProviderScope.containerOf(context, listen: false);
     final authNotifier = container.read(authNotifierProvider.notifier);
     await authNotifier.logout();
+    if (!mounted) return;
     context.go('/login');
   }
 
@@ -114,19 +115,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(width: 14),
-                    Column(
+                    const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Mi Tienda',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink, fontFamily: 'Inter'),
                         ),
-                        const SizedBox(height: 3),
-                        const Text(
+                        SizedBox(height: 3),
+                        Text(
                           'mitienda@correo.com',
                           style: TextStyle(fontSize: 13, color: AppColors.muted, fontFamily: 'Inter'),
                         ),
-                        const SizedBox(height: 5),
+                        SizedBox(height: 5),
                         AppBadge(text: 'Plan gratuito', color: AppColors.blue),
                       ],
                     ),

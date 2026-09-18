@@ -51,3 +51,8 @@ async def update_cliente(db: AsyncSession, cliente: Cliente, cliente_in: Cliente
     await db.commit()
     await db.refresh(cliente)
     return cliente
+
+async def delete_cliente(db: AsyncSession, cliente: Cliente) -> None:
+    from sqlalchemy.sql import func
+    cliente.deleted_at = func.now()
+    await db.commit()

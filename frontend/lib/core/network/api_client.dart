@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:fiapp/core/config/app_config.dart';
 import 'package:fiapp/core/debug/session_debug_log.dart';
 
 /// Cliente HTTP centralizado para consumir la API REST.
@@ -13,7 +14,13 @@ import 'package:fiapp/core/debug/session_debug_log.dart';
 /// peticiones.
 class ApiClient {
   ApiClient._internal() {
-    final baseUrl = dotenv.env['API_URL'] ?? '';
+    final compileTimeUrl = AppConfig.apiUrlOverride.trim();
+    final assetUrl = dotenv.env['API_URL']?.trim();
+    final baseUrl = compileTimeUrl.isNotEmpty
+      ? compileTimeUrl
+      : assetUrl == null || assetUrl.isEmpty
+        ? AppConfig.apiBaseUrl
+        : assetUrl;
 
     _dio = Dio(
       BaseOptions(
@@ -43,14 +50,8 @@ class ApiClient {
           options.headers['Content-Type'] = 'application/json';
           options.headers['Accept'] = 'application/json';
 
-          if (options.path == '/api/profile') {
-            logSupabaseSessionSnapshot(
-              'GET /api/profile request',
-              extra: {
-                'uri': options.uri,
-                'authorizationAccessToken': debugAccessTokenLabel(accessToken),
-              },
-            );
+          if (options.path == '/perfil/') {
+            logSupabaseSessionSnapshot('GET /perfil/ request');
           }
 
           handler.next(options);
@@ -60,12 +61,6 @@ class ApiClient {
             debugPrint(
               'HTTP ${response.requestOptions.method} ${response.requestOptions.uri} => ${response.statusCode}',
             );
-            if (response.requestOptions.path == '/api/profile') {
-              debugPrint(
-                '[TEMP AUTH DEBUG] GET /api/profile response '
-                'status=${response.statusCode} data=${response.data}',
-              );
-            }
           }
           handler.next(response);
         },
@@ -75,8 +70,6 @@ class ApiClient {
             debugPrint(
               'HTTP ${request.method} ${request.uri} => ${error.response?.statusCode ?? 'ERROR'}',
             );
-            debugPrint('Request data: ${request.data}');
-            debugPrint('Response data: ${error.response?.data}');
           }
           handler.next(error);
         },

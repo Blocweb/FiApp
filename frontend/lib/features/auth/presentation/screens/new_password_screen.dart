@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fiapp/core/theme/app_colors.dart';
 import 'package:fiapp/core/widgets/app_button.dart';
 import 'package:fiapp/core/widgets/app_card.dart';
 import 'package:fiapp/core/widgets/app_input.dart';
 
+/// Pantalla de nueva contraseña.
+///
+/// Supabase envía un enlace de recuperación al correo del usuario. Al hacer
+/// clic en ese enlace, la app recibe un deep-link con un token de sesión
+/// que Supabase maneja automáticamente. Esta pantalla permite al usuario
+/// definir su nueva contraseña usando [Supabase.auth.updateUser].
 class NewPasswordScreen extends StatefulWidget {
   const NewPasswordScreen({super.key});
 
@@ -13,12 +20,60 @@ class NewPasswordScreen extends StatefulWidget {
 }
 
 class _NewPasswordScreenState extends State<NewPasswordScreen> {
-  String _password = '';
-  String _confirmPassword = '';
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmController = TextEditingController();
+  bool _isLoading = false;
+  String? _error;
 
-  void _handleChangePassword() {
-    if (_password.isEmpty || _confirmPassword.isEmpty) return;
-    context.go('/login');
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleChangePassword() async {
+    final password = _passwordController.text.trim();
+    final confirm = _confirmController.text.trim();
+
+    if (password.isEmpty || confirm.isEmpty) {
+      setState(() => _error = 'Completa ambos campos.');
+      return;
+    }
+    if (password.length < 6) {
+      setState(() => _error = 'La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (password != confirm) {
+      setState(() => _error = 'Las contraseñas no coinciden.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: password),
+      );
+      if (!mounted) return;
+      // Redirigir al home después de cambiar la contraseña exitosamente.
+      context.go('/home');
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Error inesperado. Intenta de nuevo.';
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -40,7 +95,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(14),
-                        onTap: () => context.go('/verify-code'),
+                        onTap: () => context.go('/forgot-password'),
                         child: const Padding(
                           padding: EdgeInsets.all(10),
                           child: Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.ink),
@@ -108,19 +163,36 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
                     children: [
                       AppInput(
                         label: 'Nueva contraseña',
-                        value: _password,
-                        onChanged: (value) => setState(() => _password = value),
+                        value: _passwordController.text,
+                        onChanged: (value) {
+                          _passwordController.text = value;
+                          if (_error != null) setState(() => _error = null);
+                        },
                         obscureText: true,
                         placeholder: 'Mínimo 6 caracteres',
                       ),
                       const SizedBox(height: 16),
                       AppInput(
                         label: 'Confirmar contraseña',
-                        value: _confirmPassword,
-                        onChanged: (value) => setState(() => _confirmPassword = value),
+                        value: _confirmController.text,
+                        onChanged: (value) {
+                          _confirmController.text = value;
+                          if (_error != null) setState(() => _error = null);
+                        },
                         obscureText: true,
                         placeholder: 'Repite tu contraseña',
                       ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.red,
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -129,10 +201,10 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: AppButton(
-                  label: 'Cambiar contraseña',
+                  label: _isLoading ? 'Guardando...' : 'Cambiar contraseña',
                   variant: AppButtonVariant.green,
                   fullWidth: true,
-                  onPressed: _handleChangePassword,
+                  onPressed: _isLoading ? () {} : _handleChangePassword,
                 ),
               ),
             ],

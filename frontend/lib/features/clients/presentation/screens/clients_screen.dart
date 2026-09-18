@@ -148,7 +148,7 @@ class _ClientTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  client.lastMovement,
+                  Formatters.timeAgo(client.lastMovement),
                   style: const TextStyle(fontSize: 12, color: AppColors.muted, fontFamily: 'Inter'),
                 ),
                 const SizedBox(height: 5),

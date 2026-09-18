@@ -7,6 +7,7 @@ import 'package:fiapp/core/widgets/app_card.dart';
 import 'package:fiapp/features/profile/domain/entities/profile.dart';
 import 'package:fiapp/features/profile/presentation/providers/profile_provider.dart';
 import 'package:fiapp/features/settings/presentation/screens/profile_screen_helpers.dart';
+import 'package:fiapp/core/utils/formatters.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -34,17 +35,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
-  void _saveProfile() {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Perfil actualizado correctamente'),
-          backgroundColor: AppColors.green,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
-        ),
-      );
+  bool _isSaving = false;
+
+  Future<void> _saveProfile() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+
+    final success = await ref.read(profileProvider.notifier).updateProfile(
+          nombreNegocio: _businessController.text.trim(),
+        );
+
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+
+    if (success) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Perfil actualizado correctamente'),
+            backgroundColor: AppColors.green,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
+          ),
+        );
+    } else {
+      final error = ref.read(profileProvider).error;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(error ?? 'Error al actualizar el perfil'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          ),
+        );
+    }
   }
 
   void _syncProfileData(Profile? profile) {
@@ -62,6 +89,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _businessController.text = profile.nombreNegocio;
       _emailController.text = profile.email;
     }
+  }
+
+  String _formatMemberSince(Profile? profile) {
+    if (profile == null) return 'Sin datos';
+    return Formatters.monthYear(profile.createdAt);
   }
 
   @override
@@ -173,23 +205,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 const SizedBox(height: 20),
                 const Divider(color: AppColors.border, height: 1),
                 const SizedBox(height: 20),
-                const Row(
+                Row(
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'Miembro desde',
                             style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.muted,
                                 fontFamily: 'Inter'),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           Text(
-                            'Ene 2025',
-                            style: TextStyle(
+                            _formatMemberSince(profile),
+                            style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.ink,
@@ -202,17 +234,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'Plan',
                             style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.muted,
                                 fontFamily: 'Inter'),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           Text(
-                            'Gratuito',
-                            style: TextStyle(
+                            profile?.plan ?? 'Sin datos',
+                            style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.ink,
@@ -255,9 +287,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
           const SizedBox(height: 24),
           AppButton(
-            label: 'Guardar cambios',
+            label: _isSaving ? 'Guardando...' : 'Guardar cambios',
             fullWidth: true,
-            onPressed: _saveProfile,
+            onPressed: _isSaving ? () {} : _saveProfile,
           ),
         ],
       ),

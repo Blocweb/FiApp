@@ -48,4 +48,34 @@ class Formatters {
     final period = h >= 12 ? 'PM' : 'AM';
     return '$displayHour:$mm $period';
   }
+
+  /// Convierte una fecha a un formato "hace X tiempo"
+  static String timeAgo(DateTime? date) {
+    if (date == null) return 'Sin movimientos';
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays > 365) return 'Hace ${diff.inDays ~/ 365} años';
+    if (diff.inDays > 30) return 'Hace ${diff.inDays ~/ 30} meses';
+    if (diff.inDays > 0) return 'Hace ${diff.inDays} días';
+    if (diff.inHours > 0) return 'Hace ${diff.inHours} horas';
+    if (diff.inMinutes > 0) return 'Hace ${diff.inMinutes} minutos';
+    return 'Hace un momento';
+  }
+
+  static const List<String> _shortMonths = [
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+  ];
+
+  /// Formatea mes y año en español sin dependencias de localización (ej. "oct 2023").
+  static String monthYear(DateTime? date) {
+    if (date == null) return 'Sin datos';
+    final m = _shortMonths[date.month - 1];
+    return '$m ${date.year}';
+  }
+
+  /// Formatea mes abreviado con mayúscula inicial (ej. "Ene", "Feb").
+  static String shortMonth(DateTime date) {
+    final m = _shortMonths[date.month - 1];
+    return '${m[0].toUpperCase()}${m.substring(1)}';
+  }
 }

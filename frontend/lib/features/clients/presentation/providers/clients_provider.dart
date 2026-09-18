@@ -67,16 +67,23 @@ class ClientsNotifier extends StateNotifier<ClientsState> {
     return created;
   }
 
-  /// Ajusta el saldo de un cliente (usado tras registrar fiado/abono) y
-  /// refresca el estado local sin necesidad de recargar todo del backend.
-  Future<Client> adjustBalance(
-    String clientId,
-    double delta,
-    String lastMovement,
-  ) async {
+  Future<void> deleteClient(String clientId) async {
     final repo = ref.read(clientRepositoryProvider);
-    final updated = await repo.adjustBalance(clientId, delta, lastMovement);
-    if (!mounted) return updated;
+    await repo.deleteClient(clientId);
+    if (!mounted) return;
+
+    state = state.copyWith(
+      clients: state.clients.where((c) => c.id != clientId).toList(),
+    );
+  }
+
+  /// Refresca los datos de un cliente específico desde el backend.
+  /// Usado típicamente después de registrar un fiado o abono para
+  /// actualizar el saldo real calculado por el backend.
+  Future<Client?> refreshClient(String clientId) async {
+    final repo = ref.read(clientRepositoryProvider);
+    final updated = await repo.getClientById(clientId);
+    if (!mounted || updated == null) return updated;
 
     state = state.copyWith(
       clients: [

@@ -58,7 +58,7 @@ class _NewClientScreenState extends ConsumerState<NewClientScreen> {
       // ignore: deprecated_member_use
       color: _color.value,
       balance: 0,
-      lastMovement: 'Ahora',
+      lastMovement: DateTime.now(),
     );
 
     try {

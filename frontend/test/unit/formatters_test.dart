@@ -34,4 +34,16 @@ void main() {
       expect(id, matches(RegExp(r'^[a-z0-9]+$')));
     });
   });
+
+  group('Formatters.monthYear and shortMonth', () {
+    test('formatea mes y año correctamente', () {
+      final date = DateTime(2024, 10, 15);
+      expect(Formatters.monthYear(date), 'oct 2024');
+      expect(Formatters.shortMonth(date), 'Oct');
+    });
+
+    test('retorna Sin datos cuando la fecha es null', () {
+      expect(Formatters.monthYear(null), 'Sin datos');
+    });
+  });
 }

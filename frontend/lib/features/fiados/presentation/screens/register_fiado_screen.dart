@@ -89,18 +89,26 @@ class _RegisterFiadoScreenState extends ConsumerState<RegisterFiadoScreen> {
     if (client == null) return;
 
     final total = _currentTotal;
-    setState(() {
-      _success = true;
-      _total = total;
-    });
-
     final newBalance = client.balance + total;
-    await ref.read(transactionsProvider.notifier).registerFiado(
-          clientId: client.id,
-          items: _items,
-          newBalanceAfter: newBalance,
-        );
-    await ref.read(clientsProvider.notifier).adjustBalance(client.id, total, 'Ahora');
+    try {
+      await ref.read(transactionsProvider.notifier).registerFiado(
+            clientId: client.id,
+            items: _items,
+            newBalanceAfter: newBalance,
+          );
+      await ref.read(clientsProvider.notifier).refreshClient(client.id);
+      if (!mounted) return;
+      setState(() {
+        _success = true;
+        _total = total;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'No se pudo registrar el fiado: $error';
+      });
+      return;
+    }
 
     await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;
