@@ -69,3 +69,41 @@ def postgres_session():
     finally:
         session.rollback()
         session.close()
+
+
+@pytest.fixture
+def anyio_backend():
+    """Restringe AnyIO a asyncio (evita la variante trio no instalada)."""
+    return "asyncio"
+
+
+@pytest.fixture
+async def async_sqlite_session():
+    """Sesión SQLAlchemy asíncrona sobre SQLite en memoria.
+
+    Se usa para ejercitar las consultas async reales de la resolución de tenant
+    sin depender de PostgreSQL ni de Supabase. Registra `now()` y
+    `gen_random_uuid()` como en la fixture síncrona.
+    """
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def register_sqlite_functions(dbapi_connection, connection_record):
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        dbapi_connection.create_function(
+            "now", 0, lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
+        )
+        dbapi_connection.create_function(
+            "gen_random_uuid", 0, lambda: str(uuid.uuid4())
+        )
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with session_factory() as session:
+        yield session
+
+    await engine.dispose()

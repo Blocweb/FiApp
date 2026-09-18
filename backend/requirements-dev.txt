@@ -3,3 +3,6 @@ pytest==8.4.2
 pytest-cov==6.0.0
 ruff==0.8.6
 pip-audit==2.7.3
+# Dependencias exclusivas de pruebas
+# Driver async SQLite para ejercitar consultas AsyncSession sin PostgreSQL.
+aiosqlite==0.20.0

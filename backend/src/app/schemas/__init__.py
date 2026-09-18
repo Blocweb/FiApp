@@ -6,8 +6,12 @@ from src.app.schemas.transaccion import (
     TransaccionResponse,
 )
 from src.app.schemas.perfil import PerfilResponse, PerfilUpdate
+from src.app.schemas.tenant import (
+    TenantCurrentResponse,
+    TenantListadoResponse,
+    TenantResumen,
+)
 from src.app.schemas.auth import TokenData
-
 __all__ = [
     "ClienteCreate",
     "ClienteUpdate",
@@ -19,5 +23,8 @@ __all__ = [
     "TransaccionResponse",
     "PerfilResponse",
     "PerfilUpdate",
+    "TenantResumen",
+    "TenantListadoResponse",
+    "TenantCurrentResponse",
     "TokenData",
 ]
