@@ -6,6 +6,8 @@ from src.app.models.transaccion import Transaccion
 from src.app.models.fiado_item import FiadoItem
 from src.app.models.auditoria import Auditoria
 from src.app.models.exportacion import Exportacion
+from src.app.models.tenant import Tenant
+from src.app.models.tenant_usuario import TenantUsuario
 
 __all__ = [
     "Profile",
@@ -16,4 +18,6 @@ __all__ = [
     "FiadoItem",
     "Auditoria",
     "Exportacion",
+    "Tenant",
+    "TenantUsuario",
 ]
