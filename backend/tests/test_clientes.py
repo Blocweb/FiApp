@@ -2,13 +2,10 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 from fastapi import HTTPException
-from pydantic import ValidationError
 
 from src.app.routers.clientes import (
     crear_cliente,
     eliminar_cliente,
-    listar_clientes,
-    obtener_cliente,
 )
 from src.app.schemas.cliente import ClienteCreate
 

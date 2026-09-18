@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey, String, JSON, text
+from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, String, JSON, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from src.app.database.connection import Base
