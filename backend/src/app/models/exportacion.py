@@ -9,12 +9,14 @@ class Exportacion(Base):
     __tablename__ = "exportaciones"
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     owner_id = Column(
         UUID(as_uuid=True),
         ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
     )
 
+    tenant = relationship("Tenant", back_populates="exportaciones")
     owner = relationship(
         "Profile",
         back_populates="exportaciones",

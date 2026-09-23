@@ -19,6 +19,7 @@ class Profile(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
     clientes = relationship("Cliente", back_populates="owner", cascade="all, delete-orphan")
+    productos = relationship("Producto", back_populates="owner")
     transacciones = relationship("Transaccion", back_populates="owner")
     exportaciones = relationship("Exportacion", back_populates="owner")
 

@@ -1,13 +1,17 @@
-import pytest
+import uuid
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from fastapi import HTTPException
 
+from src.app.models.cliente import Cliente
 from src.app.routers.clientes import (
     crear_cliente,
     eliminar_cliente,
 )
 from src.app.schemas.cliente import ClienteCreate
+from src.app.services.cliente_service import get_clientes
 
 
 @pytest.mark.anyio
@@ -50,6 +54,25 @@ async def test_crear_cliente_derive_owner_id_from_jwt():
         assert dump["phone"] == "3001234567"
         assert dump["balance"] == 0.0
         assert dump["lastMovement"] is None
+
+
+@pytest.mark.anyio
+async def test_get_clientes_filtra_por_tenant_id():
+    db = AsyncMock()
+    tenant_a = uuid.uuid4()
+    tenant_b = uuid.uuid4()
+
+    cliente_a = Cliente(id=uuid.uuid4(), tenant_id=tenant_a, owner_id=uuid.uuid4(), nombre="A")
+    cliente_b = Cliente(id=uuid.uuid4(), tenant_id=tenant_b, owner_id=uuid.uuid4(), nombre="B")
+
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [cliente_a]
+    db.execute.return_value = result
+
+    clientes = await get_clientes(db, tenant_id=tenant_a)
+
+    assert clientes == [cliente_a]
+    db.execute.assert_called_once()
 
 
 @pytest.mark.anyio

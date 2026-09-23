@@ -23,6 +23,11 @@ class Tenant(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
     usuarios = relationship("TenantUsuario", back_populates="tenant", cascade="all, delete-orphan")
+    clientes = relationship("Cliente", back_populates="tenant")
+    productos = relationship("Producto", back_populates="tenant")
+    transacciones = relationship("Transaccion", back_populates="tenant")
+    exportaciones = relationship("Exportacion", back_populates="tenant")
+    auditorias = relationship("Auditoria", back_populates="tenant")
 
     __table_args__ = (
         CheckConstraint(

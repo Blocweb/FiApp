@@ -26,11 +26,16 @@ from uuid import UUID
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.app.core.rls_context import set_rls_context
 from src.app.core.tenant_context import TenantContext, UsuarioAutenticado
 from src.app.database.connection import get_db
 from src.app.models.profile import Profile
 from src.app.services.auth_service import get_current_profile, get_current_user
-from src.app.services.tenant_service import get_membresia, tenant_es_operativo
+from src.app.services.tenant_service import (
+    get_membresia,
+    listar_membresias_activas,
+    tenant_es_operativo,
+)
 
 TENANT_HEADER_NAME = "X-Tenant-ID"
 
@@ -74,26 +79,36 @@ async def resolve_tenant_context(
     )
 
 
-async def get_current_tenant_context(
-    usuario: UsuarioAutenticado = Depends(get_current_user),
-    profile: Profile = Depends(get_current_profile),
-    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER_NAME),
-    db: AsyncSession = Depends(get_db),
+async def _resolver_sin_contexto_postgres(
+    usuario: UsuarioAutenticado,
+    profile: Profile,
+    x_tenant_id: str | None,
+    db: AsyncSession,
 ) -> TenantContext:
-    """Dependencia FastAPI que expone el contexto de tenant validado.
+    """Resuelve y valida el tenant en motores sin variables de sesión.
 
-    Reutiliza `get_current_user()` y `get_current_profile()` mediante el sistema
-    de dependencias de FastAPI, por lo que la validación del token con Supabase
-    se ejecuta una sola vez por petición, aunque varios parámetros dependan de
-    la misma identidad.
+    Motores como SQLite (usados en pruebas unitarias) no soportan
+    ``set_config``; aquí solo se valida la membresía y se devuelve el contexto.
+    La propagación a PostgreSQL se hace exclusivamente en el camino que usa
+    ``set_rls_context``.
     """
     if x_tenant_id is None or not x_tenant_id.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "code": "tenant_required",
-                "message": f"El encabezado {TENANT_HEADER_NAME} es obligatorio",
-            },
+        membresias = await listar_membresias_activas(db, profile_id=profile.id)
+        if not membresias:
+            raise _tenant_no_autorizado
+        if len(membresias) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "tenant_required",
+                    "message": f"Debe indicar {TENANT_HEADER_NAME} porque el usuario tiene varias membresías activas.",
+                },
+            )
+        return await resolve_tenant_context(
+            usuario=usuario,
+            profile=profile,
+            tenant_id=membresias[0].tenant_id,
+            db=db,
         )
 
     try:
@@ -106,10 +121,76 @@ async def get_current_tenant_context(
                 "message": f"El encabezado {TENANT_HEADER_NAME} no es un UUID válido",
             },
         ) from None
-
     return await resolve_tenant_context(
         usuario=usuario,
         profile=profile,
         tenant_id=tenant_id,
         db=db,
     )
+
+async def get_current_tenant_context(
+    usuario: UsuarioAutenticado = Depends(get_current_user),
+    profile: Profile = Depends(get_current_profile),
+    x_tenant_id: str | None = Header(default=None, alias=TENANT_HEADER_NAME),
+    db: AsyncSession = Depends(get_db),
+) -> TenantContext:
+    """Dependencia FastAPI que expone el contexto de tenant validado.
+
+    Reutiliza `get_current_user()` y `get_current_profile()` mediante el sistema
+    de dependencias de FastAPI, por lo que la validación del token con Supabase
+    se ejecuta una sola vez por petición, aunque varios parámetros dependan de
+    la misma identidad.
+
+    Durante la fase de compatibilidad se permite resolver automáticamente el
+    único tenant activo disponible. Si el usuario tiene varias membresías, el
+    cliente debe enviar el header explícito para evitar ambigüedad.
+    """
+    if db.bind is not None and db.bind.dialect.name != "postgresql":
+        context = await _resolver_sin_contexto_postgres(
+            usuario=usuario,
+            profile=profile,
+            x_tenant_id=x_tenant_id,
+            db=db,
+        )
+        return context
+    if x_tenant_id is None or not x_tenant_id.strip():
+        membresias = await listar_membresias_activas(db, profile_id=profile.id)
+        if not membresias:
+            raise _tenant_no_autorizado
+        if len(membresias) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "tenant_required",
+                    "message": f"Debe indicar {TENANT_HEADER_NAME} porque el usuario tiene varias membresías activas.",
+                },
+            )
+        tenant_id = membresias[0].tenant_id
+        contexto = await resolve_tenant_context(
+            usuario=usuario,
+            profile=profile,
+            tenant_id=tenant_id,
+            db=db,
+        )
+        await set_rls_context(db, contexto)
+        return contexto
+
+    try:
+        tenant_id = UUID(x_tenant_id.strip())
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "tenant_invalid",
+                "message": f"El encabezado {TENANT_HEADER_NAME} no es un UUID válido",
+            },
+        ) from None
+
+    contexto = await resolve_tenant_context(
+        usuario=usuario,
+        profile=profile,
+        tenant_id=tenant_id,
+        db=db,
+    )
+    await set_rls_context(db, contexto)
+    return contexto

@@ -266,19 +266,51 @@ async def test_usuario_sin_tenants():
 
 
 @pytest.mark.anyio
-async def test_header_ausente_devuelve_400_tenant_required():
-    """Sin X-Tenant-ID no hay selección ni fallback: 400 tenant_required."""
+async def test_header_ausente_y_solo_un_tenant_se_resuelve_automaticamente():
+    """Cuando el usuario tiene un único tenant activo, se resuelve sin header."""
     import main
 
     async with _session_scope() as session:
-        datos = await _seed(session)
-        client = _build_client(main.app, session, datos["profile"])
+        profile = Profile(id=uuid.uuid4(), email="solo@fiapp.test")
+        tenant = Tenant(id=uuid.uuid4(), nombre_comercial="Mi negocio", estado="activo")
+        session.add_all([profile, tenant])
+        await session.commit()
+        session.add(TenantUsuario(id=uuid.uuid4(), tenant_id=tenant.id, profile_id=profile.id, rol="propietario"))
+        await session.commit()
+
+        client = _build_client(main.app, session, profile)
         try:
             resp = client.get("/tenants/current", headers=BEARER)
-            assert resp.status_code == 400
+            assert resp.status_code == 200
+            assert resp.json()["tenant_id"] == str(tenant.id)
+        finally:
+            main.app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_header_ausente_con_varios_tenants_devuelve_409():
+    """Sin header y con varias membresías activas, exige selección explícita."""
+    import main
+
+    async with _session_scope() as session:
+        profile = Profile(id=uuid.uuid4(), email="multi@fiapp.test")
+        t1 = Tenant(id=uuid.uuid4(), nombre_comercial="Negocio 1", estado="activo")
+        t2 = Tenant(id=uuid.uuid4(), nombre_comercial="Negocio 2", estado="activo")
+        session.add_all([profile, t1, t2])
+        await session.commit()
+        session.add_all(
+            [
+                TenantUsuario(id=uuid.uuid4(), tenant_id=t1.id, profile_id=profile.id, rol="propietario"),
+                TenantUsuario(id=uuid.uuid4(), tenant_id=t2.id, profile_id=profile.id, rol="cobrador"),
+            ]
+        )
+        await session.commit()
+
+        client = _build_client(main.app, session, profile)
+        try:
+            resp = client.get("/tenants/current", headers=BEARER)
+            assert resp.status_code == 409
             assert resp.json()["detail"]["code"] == "tenant_required"
-            # No se filtra el id del tenant propio.
-            assert str(datos["tenant_propio"].id) not in resp.text
         finally:
             main.app.dependency_overrides.clear()
 

@@ -13,10 +13,13 @@ from src.app.models.transaccion import Transaccion
 from src.app.schemas.transaccion import TransaccionAbonoCreate, TransaccionFiadoCreate
 
 
-def _transaction_query(owner_id: str):
+def _transaction_query(tenant_id: str | None = None, owner_id: str | None = None):
+    effective_tenant_id = tenant_id or owner_id
+    if effective_tenant_id is None:
+        raise ValueError("Se requiere tenant_id o owner_id")
     return (
         select(Transaccion)
-        .where(Transaccion.owner_id == owner_id, Transaccion.deleted_at.is_(None))
+        .where(Transaccion.tenant_id == effective_tenant_id, Transaccion.deleted_at.is_(None))
         .options(selectinload(Transaccion.fiado_items))
         .order_by(Transaccion.created_at.desc())
     )
@@ -25,10 +28,14 @@ def _transaction_query(owner_id: str):
 async def _get_transaction_by_id(
     db: AsyncSession,
     transaction_id: str,
-    owner_id: str,
+    tenant_id: str | None = None,
+    owner_id: str | None = None,
 ) -> Transaccion:
+    effective_tenant_id = tenant_id or owner_id
+    if effective_tenant_id is None:
+        raise ValueError("Se requiere tenant_id o owner_id")
     result = await db.execute(
-        _transaction_query(owner_id).where(Transaccion.id == transaction_id)
+        _transaction_query(effective_tenant_id).where(Transaccion.id == transaction_id)
     )
     return result.scalar_one()
 
@@ -36,26 +43,35 @@ async def _get_transaction_by_id(
 async def get_transacciones_por_cliente(
     db: AsyncSession,
     cliente_id: str,
-    owner_id: str,
+    tenant_id: str | None = None,
+    owner_id: str | None = None,
 ) -> list[Transaccion]:
+    effective_tenant_id = tenant_id or owner_id
+    if effective_tenant_id is None:
+        raise ValueError("Se requiere tenant_id o owner_id")
     result = await db.execute(
-        _transaction_query(owner_id).where(Transaccion.cliente_id == cliente_id)
+        _transaction_query(effective_tenant_id).where(Transaccion.cliente_id == cliente_id)
     )
     return result.scalars().all()
 
 
-async def get_transacciones(db: AsyncSession, owner_id: str) -> list[Transaccion]:
-    result = await db.execute(_transaction_query(owner_id))
+async def get_transacciones(db: AsyncSession, tenant_id: str | None = None, owner_id: str | None = None) -> list[Transaccion]:
+    effective_tenant_id = tenant_id or owner_id
+    if effective_tenant_id is None:
+        raise ValueError("Se requiere tenant_id o owner_id")
+    result = await db.execute(_transaction_query(effective_tenant_id))
     return result.scalars().all()
 
 
 async def create_fiado(
     db: AsyncSession,
+    tenant_id: str,
     owner_id: str,
     cliente: Cliente,
     transaccion_in: TransaccionFiadoCreate,
 ) -> Transaccion:
     transaccion = Transaccion(
+        tenant_id=tenant_id,
         owner_id=owner_id,
         cliente_id=cliente.id,
         tipo="fiado",
@@ -82,11 +98,12 @@ async def create_fiado(
         await db.rollback()
         raise
 
-    return await _get_transaction_by_id(db, str(transaccion.id), owner_id)
+    return await _get_transaction_by_id(db, str(transaccion.id), tenant_id)
 
 
 async def create_abono(
     db: AsyncSession,
+    tenant_id: str,
     owner_id: str,
     cliente: Cliente,
     transaccion_in: TransaccionAbonoCreate,
@@ -113,6 +130,7 @@ async def create_abono(
         )
 
     transaccion = Transaccion(
+        tenant_id=tenant_id,
         owner_id=owner_id,
         cliente_id=cliente.id,
         tipo="abono",
@@ -127,4 +145,4 @@ async def create_abono(
         await db.rollback()
         raise
 
-    return await _get_transaction_by_id(db, str(transaccion.id), owner_id)
+    return await _get_transaction_by_id(db, str(transaccion.id), tenant_id)

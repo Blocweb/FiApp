@@ -1,6 +1,15 @@
 -- =============================================================================
 -- FiApp — Esquema Supabase PostgreSQL
 -- Versión corregida con catálogo de productos
+--
+-- NOTA DE RECONCILIACIÓN (Fase de reconciliación repo↔producción):
+--   Este script representa el estado FINAL validado en producción. Las tablas
+--   operativas son tenant-aware (tenant_id), el aislamiento se resuelve por
+--   tenant + membership activa, y las policies legacy basadas únicamente en
+--   owner_id = auth.uid() fueron reemplazadas. La sección 7 (RECONCILIACIÓN
+--   MULTI-TENANT) contiene el modelo de seguridad vigente y debe aplicarse
+--   después de las secciones 1-6. Ver también
+--   migrations/005_rls_reconciliation.sql.
 -- =============================================================================
 
 -- =============================================================================
@@ -54,6 +63,10 @@ create table public.metodos_pago (
 create table public.clientes (
     id uuid primary key default gen_random_uuid(),
 
+    tenant_id uuid not null
+        references public.tenants(id)
+        on delete restrict,
+
     owner_id uuid not null
         references public.profiles(id)
         on delete cascade,
@@ -85,6 +98,10 @@ create table public.clientes (
 create table public.productos (
 
     id uuid primary key default gen_random_uuid(),
+
+    tenant_id uuid not null
+        references public.tenants(id)
+        on delete restrict,
 
     owner_id uuid not null
         references public.profiles(id)
@@ -119,10 +136,17 @@ create table public.transacciones (
 
     id uuid primary key default gen_random_uuid(),
 
+    tenant_id uuid not null
+        references public.tenants(id)
+        on delete restrict,
+
     owner_id uuid not null
         references public.profiles(id)
         on delete cascade,
 
+    -- FK legacy conservada deliberadamente (compatibilidad histórica).
+    -- La integridad tenant-aware se refuerza con la FK compuesta
+    -- (tenant_id, cliente_id) -> clientes(tenant_id, id) definida abajo.
     cliente_id uuid not null
         references public.clientes(id)
         on delete restrict,
@@ -159,7 +183,13 @@ create table public.transacciones (
 
         (tipo='fiado' and metodo_pago_id is null)
 
-    )
+    ),
+
+    -- Integridad referencial compuesta por tenant (migración 003).
+    constraint fk_transacciones_tenant_cliente
+        foreign key (tenant_id, cliente_id)
+        references public.clientes (tenant_id, id)
+        on delete restrict
 );
 
 
@@ -210,6 +240,10 @@ create table public.auditoria (
 
     id bigserial primary key,
 
+    tenant_id uuid not null
+        references public.tenants(id)
+        on delete restrict,
+
     owner_id uuid not null,
 
     tabla varchar(30) not null,
@@ -237,6 +271,10 @@ create table public.auditoria (
 create table public.exportaciones (
 
     id uuid primary key default gen_random_uuid(),
+
+    tenant_id uuid not null
+        references public.tenants(id)
+        on delete restrict,
 
     owner_id uuid not null
         references public.profiles(id)
@@ -466,7 +504,7 @@ language plpgsql
 
 security definer
 
-set search_path = public
+set search_path = pg_catalog, public
 
 as $$
 
@@ -476,25 +514,34 @@ saldo_actual numeric(12,2);
 
 owner_cliente uuid;
 
+tenant_cliente uuid;
+
 
 begin
 
+if new.tenant_id is null then
 
-select saldo, owner_id
+raise exception 'La transaccion requiere tenant_id';
 
-into saldo_actual, owner_cliente
+end if;
+
+select saldo, owner_id, tenant_id
+
+into saldo_actual, owner_cliente, tenant_cliente
 
 from public.clientes
 
 where id = new.cliente_id
 
+and tenant_id = new.tenant_id
+
 for update;
 
 
 
-if owner_cliente is null then
+if tenant_cliente is null then
 
-raise exception 'Cliente no existe';
+raise exception 'Cliente no existe o no pertenece al tenant de la transaccion';
 
 end if;
 
@@ -568,7 +615,7 @@ language plpgsql
 
 security definer
 
-set search_path = public
+set search_path = pg_catalog, public
 
 as $$
 
@@ -577,12 +624,26 @@ declare
 
 v_cliente_id uuid;
 
+v_tenant_id uuid;
+
 
 begin
 
 
 v_cliente_id :=
 coalesce(new.cliente_id, old.cliente_id);
+
+v_tenant_id :=
+case
+when tg_op = 'DELETE' then old.tenant_id
+else new.tenant_id
+end;
+
+if v_tenant_id is null then
+
+raise exception 'La transaccion requiere tenant_id';
+
+end if;
 
 
 
@@ -611,6 +672,8 @@ from public.transacciones
 
 where cliente_id = v_cliente_id
 
+and tenant_id = v_tenant_id
+
 and deleted_at is null
 
 ),
@@ -630,12 +693,22 @@ from public.transacciones
 
 where cliente_id = v_cliente_id
 
+and tenant_id = v_tenant_id
+
 and deleted_at is null
 
 )
 
 
-where id = v_cliente_id;
+where id = v_cliente_id
+
+and tenant_id = v_tenant_id;
+
+if not found then
+
+raise exception 'Cliente no existe o no pertenece al tenant de la transaccion';
+
+end if;
 
 
 
@@ -673,7 +746,7 @@ language plpgsql
 
 security definer
 
-set search_path = public
+set search_path = pg_catalog, public
 
 as $$
 
@@ -682,6 +755,8 @@ declare
 
 v_owner uuid;
 
+v_tenant_id uuid;
+
 
 begin
 
@@ -689,10 +764,23 @@ begin
 v_owner :=
 coalesce(new.owner_id, old.owner_id);
 
+v_tenant_id :=
+case
+when tg_op = 'DELETE' then old.tenant_id
+else new.tenant_id
+end;
+
+if v_tenant_id is null then
+
+raise exception 'La auditoria requiere tenant_id';
+
+end if;
+
 
 
 insert into public.auditoria
 (
+tenant_id,
 owner_id,
 tabla,
 registro_id,
@@ -706,6 +794,7 @@ realizado_por
 values
 
 (
+v_tenant_id,
 v_owner,
 
 tg_table_name,
@@ -926,25 +1015,30 @@ t.fecha_hora
 
 
 -- =============================================================================
+-- [DEPRECATED] Las policies legacy basadas en owner_id = auth.uid() para
+-- clientes, productos, transacciones, fiado_items, auditoria y exportaciones
+-- están DESACTIVADAS (comentadas). El modelo de seguridad vigente es la
+-- sección 7 (RECONCILIACIÓN MULTI-TENANT). Se conservan activas únicamente
+-- las policies de profiles y metodos_pago.
 -- 5. ROW LEVEL SECURITY
 -- =============================================================================
 
 
-alter table public.profiles enable row level security;
+-- [SUPERSEDED] alter table public.profiles enable row level security;
 
-alter table public.clientes enable row level security;
+-- [SUPERSEDED] alter table public.clientes enable row level security;
 
-alter table public.productos enable row level security;
+-- [SUPERSEDED] alter table public.productos enable row level security;
 
-alter table public.transacciones enable row level security;
+-- [SUPERSEDED] alter table public.transacciones enable row level security;
 
-alter table public.fiado_items enable row level security;
+-- [SUPERSEDED] alter table public.fiado_items enable row level security;
 
-alter table public.metodos_pago enable row level security;
+-- [SUPERSEDED] alter table public.metodos_pago enable row level security;
 
-alter table public.auditoria enable row level security;
+-- [SUPERSEDED] alter table public.auditoria enable row level security;
 
-alter table public.exportaciones enable row level security;
+-- [SUPERSEDED] alter table public.exportaciones enable row level security;
 
 
 
@@ -979,45 +1073,45 @@ using(id = auth.uid());
 -- =============================================================================
 
 
-create policy clientes_select_own
+-- [SUPERSEDED] create policy clientes_select_own
 
-on public.clientes
+-- [SUPERSEDED] on public.clientes
 
-for select
+-- [SUPERSEDED] for select
 
-using(owner_id = auth.uid());
-
-
-
-create policy clientes_insert_own
-
-on public.clientes
-
-for insert
-
-with check(owner_id = auth.uid());
+-- [SUPERSEDED] using(owner_id = auth.uid());
 
 
 
-create policy clientes_update_own
+-- [SUPERSEDED] create policy clientes_insert_own
 
-on public.clientes
+-- [SUPERSEDED] on public.clientes
 
-for update
+-- [SUPERSEDED] for insert
 
-using(owner_id = auth.uid())
-
-with check(owner_id = auth.uid());
+-- [SUPERSEDED] with check(owner_id = auth.uid());
 
 
 
-create policy clientes_delete_own
+-- [SUPERSEDED] create policy clientes_update_own
 
-on public.clientes
+-- [SUPERSEDED] on public.clientes
 
-for delete
+-- [SUPERSEDED] for update
 
-using(owner_id = auth.uid());
+-- [SUPERSEDED] using(owner_id = auth.uid())
+
+-- [SUPERSEDED] with check(owner_id = auth.uid());
+
+
+
+-- [SUPERSEDED] create policy clientes_delete_own
+
+-- [SUPERSEDED] on public.clientes
+
+-- [SUPERSEDED] for delete
+
+-- [SUPERSEDED] using(owner_id = auth.uid());
 
 
 
@@ -1028,45 +1122,45 @@ using(owner_id = auth.uid());
 -- =============================================================================
 
 
-create policy productos_select_own
+-- [SUPERSEDED] create policy productos_select_own
 
-on public.productos
+-- [SUPERSEDED] on public.productos
 
-for select
+-- [SUPERSEDED] for select
 
-using(owner_id = auth.uid());
-
-
-
-create policy productos_insert_own
-
-on public.productos
-
-for insert
-
-with check(owner_id = auth.uid());
+-- [SUPERSEDED] using(owner_id = auth.uid());
 
 
 
-create policy productos_update_own
+-- [SUPERSEDED] create policy productos_insert_own
 
-on public.productos
+-- [SUPERSEDED] on public.productos
 
-for update
+-- [SUPERSEDED] for insert
 
-using(owner_id = auth.uid())
-
-with check(owner_id = auth.uid());
+-- [SUPERSEDED] with check(owner_id = auth.uid());
 
 
 
-create policy productos_delete_own
+-- [SUPERSEDED] create policy productos_update_own
 
-on public.productos
+-- [SUPERSEDED] on public.productos
 
-for delete
+-- [SUPERSEDED] for update
 
-using(owner_id = auth.uid());
+-- [SUPERSEDED] using(owner_id = auth.uid())
+
+-- [SUPERSEDED] with check(owner_id = auth.uid());
+
+
+
+-- [SUPERSEDED] create policy productos_delete_own
+
+-- [SUPERSEDED] on public.productos
+
+-- [SUPERSEDED] for delete
+
+-- [SUPERSEDED] using(owner_id = auth.uid());
 
 
 
@@ -1076,66 +1170,66 @@ using(owner_id = auth.uid());
 -- =============================================================================
 
 
-create policy transacciones_select_own
+-- [SUPERSEDED] create policy transacciones_select_own
 
-on public.transacciones
+-- [SUPERSEDED] on public.transacciones
 
-for select
+-- [SUPERSEDED] for select
 
-using(owner_id = auth.uid());
-
-
-
-create policy transacciones_insert_own
-
-on public.transacciones
-
-for insert
-
-with check
-
-(
-
-owner_id = auth.uid()
-
-
-and exists
-
-(
-
-select 1
-
-from public.clientes c
-
-where c.id = cliente_id
-
-and c.owner_id = auth.uid()
-
-)
-
-);
+-- [SUPERSEDED] using(owner_id = auth.uid());
 
 
 
-create policy transacciones_update_own
+-- [SUPERSEDED] create policy transacciones_insert_own
 
-on public.transacciones
+-- [SUPERSEDED] on public.transacciones
 
-for update
+-- [SUPERSEDED] for insert
 
-using(owner_id = auth.uid())
+-- [SUPERSEDED] with check
 
-with check(owner_id = auth.uid());
+-- [SUPERSEDED] (
+
+-- [SUPERSEDED] owner_id = auth.uid()
+
+
+-- [SUPERSEDED] and exists
+
+-- [SUPERSEDED] (
+
+-- [SUPERSEDED] select 1
+
+-- [SUPERSEDED] from public.clientes c
+
+-- [SUPERSEDED] where c.id = cliente_id
+
+-- [SUPERSEDED] and c.owner_id = auth.uid()
+
+-- [SUPERSEDED] )
+
+-- [SUPERSEDED] );
 
 
 
-create policy transacciones_delete_own
+-- [SUPERSEDED] create policy transacciones_update_own
 
-on public.transacciones
+-- [SUPERSEDED] on public.transacciones
 
-for delete
+-- [SUPERSEDED] for update
 
-using(owner_id = auth.uid());
+-- [SUPERSEDED] using(owner_id = auth.uid())
+
+-- [SUPERSEDED] with check(owner_id = auth.uid());
+
+
+
+-- [SUPERSEDED] create policy transacciones_delete_own
+
+-- [SUPERSEDED] on public.transacciones
+
+-- [SUPERSEDED] for delete
+
+-- [SUPERSEDED] using(owner_id = auth.uid());
 
 
 
@@ -1146,136 +1240,136 @@ using(owner_id = auth.uid());
 -- =============================================================================
 
 
-create policy fiado_items_select_own
+-- [SUPERSEDED] create policy fiado_items_select_own
 
-on public.fiado_items
+-- [SUPERSEDED] on public.fiado_items
 
-for select
+-- [SUPERSEDED] for select
 
-using
+-- [SUPERSEDED] using
 
-(
+-- [SUPERSEDED] (
 
-exists
+-- [SUPERSEDED] exists
 
-(
+-- [SUPERSEDED] (
 
-select 1
+-- [SUPERSEDED] select 1
 
-from public.transacciones t
+-- [SUPERSEDED] from public.transacciones t
 
-where t.id = transaccion_id
+-- [SUPERSEDED] where t.id = transaccion_id
 
-and t.owner_id = auth.uid()
+-- [SUPERSEDED] and t.owner_id = auth.uid()
 
-)
+-- [SUPERSEDED] )
 
-);
+-- [SUPERSEDED] );
 
 
 
 
-create policy fiado_items_insert_own
+-- [SUPERSEDED] create policy fiado_items_insert_own
 
-on public.fiado_items
+-- [SUPERSEDED] on public.fiado_items
 
-for insert
+-- [SUPERSEDED] for insert
 
-with check
+-- [SUPERSEDED] with check
 
-(
+-- [SUPERSEDED] (
 
-exists
+-- [SUPERSEDED] exists
 
-(
+-- [SUPERSEDED] (
 
-select 1
+-- [SUPERSEDED] select 1
 
-from public.transacciones t
+-- [SUPERSEDED] from public.transacciones t
 
-where t.id = transaccion_id
+-- [SUPERSEDED] where t.id = transaccion_id
 
-and t.owner_id = auth.uid()
+-- [SUPERSEDED] and t.owner_id = auth.uid()
 
-)
+-- [SUPERSEDED] )
 
-);
+-- [SUPERSEDED] );
 
 
 
-create policy fiado_items_update_own
+-- [SUPERSEDED] create policy fiado_items_update_own
 
-on public.fiado_items
+-- [SUPERSEDED] on public.fiado_items
 
-for update
+-- [SUPERSEDED] for update
 
-using
+-- [SUPERSEDED] using
 
-(
+-- [SUPERSEDED] (
 
-exists
+-- [SUPERSEDED] exists
 
-(
+-- [SUPERSEDED] (
 
-select 1
+-- [SUPERSEDED] select 1
 
-from public.transacciones t
+-- [SUPERSEDED] from public.transacciones t
 
-where t.id = transaccion_id
+-- [SUPERSEDED] where t.id = transaccion_id
 
-and t.owner_id = auth.uid()
+-- [SUPERSEDED] and t.owner_id = auth.uid()
 
-)
+-- [SUPERSEDED] )
 
-)
+-- [SUPERSEDED] )
 
-with check
+-- [SUPERSEDED] with check
 
-(
+-- [SUPERSEDED] (
 
-exists
+-- [SUPERSEDED] exists
 
-(
+-- [SUPERSEDED] (
 
-select 1
+-- [SUPERSEDED] select 1
 
-from public.transacciones t
+-- [SUPERSEDED] from public.transacciones t
 
-where t.id = transaccion_id
+-- [SUPERSEDED] where t.id = transaccion_id
 
-and t.owner_id = auth.uid()
+-- [SUPERSEDED] and t.owner_id = auth.uid()
 
-)
+-- [SUPERSEDED] )
 
-);
+-- [SUPERSEDED] );
 
 
 
-create policy fiado_items_delete_own
+-- [SUPERSEDED] create policy fiado_items_delete_own
 
-on public.fiado_items
+-- [SUPERSEDED] on public.fiado_items
 
-for delete
+-- [SUPERSEDED] for delete
 
-using
+-- [SUPERSEDED] using
 
-(
+-- [SUPERSEDED] (
 
-exists
+-- [SUPERSEDED] exists
 
-(
+-- [SUPERSEDED] (
 
-select 1
+-- [SUPERSEDED] select 1
 
-from public.transacciones t
+-- [SUPERSEDED] from public.transacciones t
 
-where t.id = transaccion_id
+-- [SUPERSEDED] where t.id = transaccion_id
 
-and t.owner_id = auth.uid()
+-- [SUPERSEDED] and t.owner_id = auth.uid()
 
-)
+-- [SUPERSEDED] )
 
-);
+-- [SUPERSEDED] );
 
 
 
@@ -1303,13 +1397,13 @@ using(auth.role()='authenticated');
 -- =============================================================================
 
 
-create policy auditoria_select_own
+-- [SUPERSEDED] create policy auditoria_select_own
 
-on public.auditoria
+-- [SUPERSEDED] on public.auditoria
 
-for select
+-- [SUPERSEDED] for select
 
-using(owner_id = auth.uid());
+-- [SUPERSEDED] using(owner_id = auth.uid());
 
 
 
@@ -1320,23 +1414,23 @@ using(owner_id = auth.uid());
 -- =============================================================================
 
 
-create policy exportaciones_select_own
+-- [SUPERSEDED] create policy exportaciones_select_own
 
-on public.exportaciones
+-- [SUPERSEDED] on public.exportaciones
 
-for select
+-- [SUPERSEDED] for select
 
-using(owner_id = auth.uid());
+-- [SUPERSEDED] using(owner_id = auth.uid());
 
 
 
-create policy exportaciones_insert_own
+-- [SUPERSEDED] create policy exportaciones_insert_own
 
-on public.exportaciones
+-- [SUPERSEDED] on public.exportaciones
 
-for insert
+-- [SUPERSEDED] for insert
 
-with check(owner_id = auth.uid());
+-- [SUPERSEDED] with check(owner_id = auth.uid());
 
 
 
@@ -1374,4 +1468,383 @@ do nothing;
 
 -- =============================================================================
 -- FIN DEL SCRIPT FiApp
+-- =============================================================================
+
+-- =============================================================================
+-- 7. RECONCILIACIÓN MULTI-TENANT (estado final validado en producción)
+-- =============================================================================
+-- Esta sección SUSTITUYE las policies legacy definidas en la sección 5.
+-- Las policies de la sección 5 quedan como referencia histórica; el modelo de
+-- seguridad vigente es el siguiente (equivalente a
+-- migrations/005_rls_reconciliation.sql).
+--
+-- Frontera de aislamiento: tenant_id.
+-- Autorización: auth.uid() + membership activa en tenant_usuarios.
+-- owner_id se conserva como dato histórico, NO como frontera de seguridad.
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- 7.1 FK tenant_id -> tenants(id) (idempotente)
+-- -----------------------------------------------------------------------------
+do $$
+declare
+    t text;
+    fk text;
+    pares text[][] := array[
+        ['clientes',      'fk_clientes_tenant'],
+        ['productos',     'fk_productos_tenant'],
+        ['transacciones', 'fk_transacciones_tenant'],
+        ['auditoria',     'fk_auditoria_tenant'],
+        ['exportaciones', 'fk_exportaciones_tenant']
+    ];
+    i int;
+begin
+    for i in 1..array_length(pares, 1) loop
+        t := pares[i][1];
+        fk := pares[i][2];
+        if not exists (
+            select 1 from pg_constraint
+            where conname = fk and connamespace = 'public'::regnamespace
+        ) then
+            execute format(
+                'alter table public.%I add constraint %I '
+                'foreign key (tenant_id) references public.tenants(id) on delete restrict',
+                t, fk
+            );
+        end if;
+    end loop;
+end $$;
+
+
+-- -----------------------------------------------------------------------------
+-- 7.2 Helpers RLS
+-- -----------------------------------------------------------------------------
+-- Por qué SECURITY DEFINER: RLS se evalúa para el rol ejecutor. Estos helpers
+-- deben leer tenant_usuarios (que tiene RLS) para resolver membership. Sin
+-- SECURITY DEFINER, la policy de tenant_usuarios produciría recursión. No
+-- exponen datos: devuelven boolean/text sobre el propio auth.uid().
+-- -----------------------------------------------------------------------------
+
+-- Tenant activo VALIDADO contra membership activa de auth.uid().
+-- No confía ciegamente en app.tenant_id.
+create or replace function public.current_tenant_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select tu.tenant_id
+      from public.tenant_usuarios tu
+     where tu.profile_id = auth.uid()
+       and tu.tenant_id = nullif(btrim(current_setting('app.tenant_id', true)), '')::uuid
+       and tu.activo = true
+     limit 1;
+$$;
+
+-- ¿auth.uid() es miembro activo del tenant indicado?
+create or replace function public.user_is_active_member_of_tenant(p_tenant_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select exists (
+        select 1
+          from public.tenant_usuarios tu
+         where tu.tenant_id = p_tenant_id
+           and tu.profile_id = auth.uid()
+           and tu.activo = true
+    );
+$$;
+
+-- Rol efectivo de auth.uid() en el tenant indicado (o NULL).
+create or replace function public.user_tenant_role(p_tenant_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select tu.rol
+      from public.tenant_usuarios tu
+     where tu.tenant_id = p_tenant_id
+       and tu.profile_id = auth.uid()
+       and tu.activo = true
+     limit 1;
+$$;
+
+-- Permisos: EXECUTE solo a roles relevantes; nunca a PUBLIC.
+revoke all on function public.current_tenant_id() from public;
+revoke all on function public.user_is_active_member_of_tenant(uuid) from public;
+revoke all on function public.user_tenant_role(uuid) from public;
+
+do $$
+begin
+    if exists (select 1 from pg_roles where rolname = 'authenticated') then
+        grant execute on function public.current_tenant_id() to authenticated;
+        grant execute on function public.user_is_active_member_of_tenant(uuid) to authenticated;
+        grant execute on function public.user_tenant_role(uuid) to authenticated;
+    end if;
+    if exists (select 1 from pg_roles where rolname = 'service_role') then
+        grant execute on function public.current_tenant_id() to service_role;
+        grant execute on function public.user_is_active_member_of_tenant(uuid) to service_role;
+        grant execute on function public.user_tenant_role(uuid) to service_role;
+    end if;
+end $$;
+
+
+-- -----------------------------------------------------------------------------
+-- 7.3 Policies tenant-aware (reemplazan las legacy de la sección 5)
+-- -----------------------------------------------------------------------------
+
+-- RLS debe estar HABILITADO en TODAS las tablas operativas. La sección 5 legacy
+-- quedó desactivada (comentada), por lo que aquí se reafirma explícitamente.
+alter table public.profiles       enable row level security;
+alter table public.clientes       enable row level security;
+alter table public.productos      enable row level security;
+alter table public.transacciones  enable row level security;
+alter table public.fiado_items    enable row level security;
+alter table public.metodos_pago   enable row level security;
+alter table public.auditoria      enable row level security;
+alter table public.exportaciones  enable row level security;
+
+-- TENANTS
+alter table public.tenants enable row level security;
+drop policy if exists tenants_select_member on public.tenants;
+drop policy if exists tenants_update_admin on public.tenants;
+
+create policy tenants_select_member on public.tenants
+    for select to authenticated
+    using (public.user_is_active_member_of_tenant(id));
+
+create policy tenants_update_admin on public.tenants
+    for update to authenticated
+    using (
+        id = public.current_tenant_id()
+        and public.user_tenant_role(id) in ('propietario','administrador')
+    )
+    with check (
+        id = public.current_tenant_id()
+        and public.user_tenant_role(id) in ('propietario','administrador')
+    );
+
+-- TENANT_USUARIOS
+alter table public.tenant_usuarios enable row level security;
+drop policy if exists tenant_usuarios_select_own on public.tenant_usuarios;
+drop policy if exists tenant_usuarios_select_tenant on public.tenant_usuarios;
+drop policy if exists tenant_usuarios_insert_admin on public.tenant_usuarios;
+drop policy if exists tenant_usuarios_update_admin on public.tenant_usuarios;
+drop policy if exists tenant_usuarios_delete_admin on public.tenant_usuarios;
+
+create policy tenant_usuarios_select_own on public.tenant_usuarios
+    for select to authenticated
+    using (profile_id = auth.uid());
+
+create policy tenant_usuarios_select_tenant on public.tenant_usuarios
+    for select to authenticated
+    using (
+        tenant_id = public.current_tenant_id()
+        and public.user_tenant_role(tenant_id) in ('propietario','administrador','supervisor')
+    );
+
+create policy tenant_usuarios_insert_admin on public.tenant_usuarios
+    for insert to authenticated
+    with check (
+        tenant_id = public.current_tenant_id()
+        and public.user_tenant_role(tenant_id) in ('propietario','administrador')
+        and (rol <> 'propietario' or public.user_tenant_role(tenant_id) = 'propietario')
+    );
+
+create policy tenant_usuarios_update_admin on public.tenant_usuarios
+    for update to authenticated
+    using (
+        tenant_id = public.current_tenant_id()
+        and public.user_tenant_role(tenant_id) in ('propietario','administrador')
+    )
+    with check (
+        tenant_id = public.current_tenant_id()
+        and public.user_tenant_role(tenant_id) in ('propietario','administrador')
+        and (rol <> 'propietario' or public.user_tenant_role(tenant_id) = 'propietario')
+    );
+
+create policy tenant_usuarios_delete_admin on public.tenant_usuarios
+    for delete to authenticated
+    using (
+        tenant_id = public.current_tenant_id()
+        and public.user_tenant_role(tenant_id) in ('propietario','administrador')
+    );
+
+-- CLIENTES
+drop policy if exists clientes_select_own on public.clientes;
+drop policy if exists clientes_insert_own on public.clientes;
+drop policy if exists clientes_update_own on public.clientes;
+drop policy if exists clientes_delete_own on public.clientes;
+
+create policy clientes_select_tenant on public.clientes
+    for select to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy clientes_insert_tenant on public.clientes
+    for insert to authenticated
+    with check (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy clientes_update_tenant on public.clientes
+    for update to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id))
+    with check (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy clientes_delete_tenant on public.clientes
+    for delete to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+-- PRODUCTOS
+drop policy if exists productos_select_own on public.productos;
+drop policy if exists productos_insert_own on public.productos;
+drop policy if exists productos_update_own on public.productos;
+drop policy if exists productos_delete_own on public.productos;
+
+create policy productos_select_tenant on public.productos
+    for select to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy productos_insert_tenant on public.productos
+    for insert to authenticated
+    with check (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy productos_update_tenant on public.productos
+    for update to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id))
+    with check (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy productos_delete_tenant on public.productos
+    for delete to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+-- TRANSACCIONES
+drop policy if exists transacciones_select_own on public.transacciones;
+drop policy if exists transacciones_insert_own on public.transacciones;
+drop policy if exists transacciones_update_own on public.transacciones;
+drop policy if exists transacciones_delete_own on public.transacciones;
+
+create policy transacciones_select_tenant on public.transacciones
+    for select to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy transacciones_insert_tenant on public.transacciones
+    for insert to authenticated
+    with check (
+        public.user_is_active_member_of_tenant(tenant_id)
+        and exists (
+            select 1 from public.clientes c
+             where c.id = cliente_id
+               and c.tenant_id = transacciones.tenant_id
+        )
+    );
+
+create policy transacciones_update_tenant on public.transacciones
+    for update to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id))
+    with check (
+        public.user_is_active_member_of_tenant(tenant_id)
+        and exists (
+            select 1 from public.clientes c
+             where c.id = cliente_id
+               and c.tenant_id = transacciones.tenant_id
+        )
+    );
+
+create policy transacciones_delete_tenant on public.transacciones
+    for delete to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+-- FIADO_ITEMS (tenant derivado de transacciones; sin tenant_id propio)
+drop policy if exists fiado_items_select_own on public.fiado_items;
+drop policy if exists fiado_items_insert_own on public.fiado_items;
+drop policy if exists fiado_items_update_own on public.fiado_items;
+drop policy if exists fiado_items_delete_own on public.fiado_items;
+
+create policy fiado_items_select_tenant on public.fiado_items
+    for select to authenticated
+    using (
+        exists (
+            select 1 from public.transacciones t
+             where t.id = transaccion_id
+               and public.user_is_active_member_of_tenant(t.tenant_id)
+        )
+    );
+
+create policy fiado_items_insert_tenant on public.fiado_items
+    for insert to authenticated
+    with check (
+        exists (
+            select 1 from public.transacciones t
+             where t.id = transaccion_id
+               and public.user_is_active_member_of_tenant(t.tenant_id)
+        )
+    );
+
+create policy fiado_items_update_tenant on public.fiado_items
+    for update to authenticated
+    using (
+        exists (
+            select 1 from public.transacciones t
+             where t.id = transaccion_id
+               and public.user_is_active_member_of_tenant(t.tenant_id)
+        )
+    )
+    with check (
+        exists (
+            select 1 from public.transacciones t
+             where t.id = transaccion_id
+               and public.user_is_active_member_of_tenant(t.tenant_id)
+        )
+    );
+
+create policy fiado_items_delete_tenant on public.fiado_items
+    for delete to authenticated
+    using (
+        exists (
+            select 1 from public.transacciones t
+             where t.id = transaccion_id
+               and public.user_is_active_member_of_tenant(t.tenant_id)
+        )
+    );
+
+-- AUDITORIA (solo lectura tenant-aware; escritura vía trigger SECURITY DEFINER)
+drop policy if exists auditoria_select_own on public.auditoria;
+
+create policy auditoria_select_tenant on public.auditoria
+    for select to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+-- EXPORTACIONES
+drop policy if exists exportaciones_select_own on public.exportaciones;
+drop policy if exists exportaciones_insert_own on public.exportaciones;
+drop policy if exists exportaciones_update_own on public.exportaciones;
+drop policy if exists exportaciones_delete_own on public.exportaciones;
+
+create policy exportaciones_select_tenant on public.exportaciones
+    for select to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy exportaciones_insert_tenant on public.exportaciones
+    for insert to authenticated
+    with check (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy exportaciones_update_tenant on public.exportaciones
+    for update to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id))
+    with check (public.user_is_active_member_of_tenant(tenant_id));
+
+create policy exportaciones_delete_tenant on public.exportaciones
+    for delete to authenticated
+    using (public.user_is_active_member_of_tenant(tenant_id));
+
+-- PROFILES y METODOS_PAGO: sin cambios. Se conservan sus policies existentes
+-- (individual id = auth.uid() para profiles; SELECT global para metodos_pago).
+
+-- =============================================================================
+-- FIN RECONCILIACIÓN MULTI-TENANT
 -- =============================================================================

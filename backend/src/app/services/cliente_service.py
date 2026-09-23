@@ -5,25 +5,47 @@ from src.app.models.cliente import Cliente
 from src.app.schemas.cliente import ClienteCreate, ClienteUpdate
 
 
-async def get_clientes(db: AsyncSession, owner_id: str) -> list[Cliente]:
-    query = select(Cliente).where(Cliente.owner_id == owner_id, Cliente.deleted_at.is_(None))
+async def get_clientes(db: AsyncSession, tenant_id: str | None = None, owner_id: str | None = None) -> list[Cliente]:
+    effective_tenant_id = tenant_id or owner_id
+    if effective_tenant_id is None:
+        raise ValueError("Se requiere tenant_id o owner_id")
+    query = select(Cliente).where(Cliente.tenant_id == effective_tenant_id, Cliente.deleted_at.is_(None))
     result = await db.execute(query)
     return result.scalars().all()
 
 
-async def get_cliente_by_id(db: AsyncSession, cliente_id: str, owner_id: str) -> Cliente | None:
+async def get_cliente_by_id(
+    db: AsyncSession,
+    cliente_id: str,
+    tenant_id: str | None = None,
+    owner_id: str | None = None,
+) -> Cliente | None:
+    effective_tenant_id = tenant_id or owner_id
+    if effective_tenant_id is None:
+        raise ValueError("Se requiere tenant_id o owner_id")
     query = select(Cliente).where(
         Cliente.id == cliente_id,
-        Cliente.owner_id == owner_id,
+        Cliente.tenant_id == effective_tenant_id,
         Cliente.deleted_at.is_(None),
     )
     result = await db.execute(query)
     return result.scalars().first()
 
 
-async def create_cliente(db: AsyncSession, owner_id: str, cliente_in: ClienteCreate) -> Cliente:
+async def create_cliente(
+    db: AsyncSession,
+    tenant_id: str | None = None,
+    owner_id: str | None = None,
+    cliente_in: ClienteCreate | None = None,
+) -> Cliente:
+    if cliente_in is None:
+        raise ValueError("cliente_in es obligatorio")
+    effective_tenant_id = tenant_id or owner_id
+    if effective_tenant_id is None:
+        raise ValueError("Se requiere tenant_id o owner_id")
     cliente = Cliente(
-        owner_id=owner_id,
+        tenant_id=effective_tenant_id,
+        owner_id=owner_id or effective_tenant_id,
         nombre=cliente_in.nombre,
         telefono=cliente_in.telefono or "",
         direccion=cliente_in.direccion or "",
