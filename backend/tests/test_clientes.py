@@ -60,10 +60,8 @@ async def test_crear_cliente_derive_owner_id_from_jwt():
 async def test_get_clientes_filtra_por_tenant_id():
     db = AsyncMock()
     tenant_a = uuid.uuid4()
-    tenant_b = uuid.uuid4()
 
     cliente_a = Cliente(id=uuid.uuid4(), tenant_id=tenant_a, owner_id=uuid.uuid4(), nombre="A")
-    cliente_b = Cliente(id=uuid.uuid4(), tenant_id=tenant_b, owner_id=uuid.uuid4(), nombre="B")
 
     result = MagicMock()
     result.scalars.return_value.all.return_value = [cliente_a]
