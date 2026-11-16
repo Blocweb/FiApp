@@ -11,6 +11,8 @@ class Profile(Base):
     id = Column(UUID(as_uuid=True), primary_key=True)
     nombre_negocio = Column(String(150), nullable=False, server_default=text("'Mi tienda'"))
     email = Column(String(255), nullable=False)
+    # HU01 (T01): nombre de la persona (dueño o trabajador).
+    nombre = Column(String(150))
     plan = Column(String(20), nullable=False, server_default=text("'gratuito'"))
     rol = Column(String(20), nullable=False, server_default=text("'propietario'"))
     modo_oscuro = Column(Boolean, nullable=False, server_default=text("false"))

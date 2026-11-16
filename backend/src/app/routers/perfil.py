@@ -25,4 +25,5 @@ async def actualizar_perfil(
         modo_oscuro=perfil_in.modo_oscuro,
         respaldo_nube=perfil_in.respaldo_nube,
         db=db,
+        nombre=perfil_in.nombre,
     )

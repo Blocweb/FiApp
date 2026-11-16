@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -6,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.app.core.ids import as_uuid
 from src.app.models.cliente import Cliente
 from src.app.models.fiado_item import FiadoItem
 from src.app.models.metodo_pago import MetodoPago
@@ -14,14 +16,14 @@ from src.app.schemas.transaccion import TransaccionAbonoCreate, TransaccionFiado
 
 
 def _transaction_query(tenant_id: str | None = None, owner_id: str | None = None):
-    effective_tenant_id = tenant_id or owner_id
+    effective_tenant_id = as_uuid(tenant_id or owner_id) or tenant_id or owner_id
     if effective_tenant_id is None:
         raise ValueError("Se requiere tenant_id o owner_id")
     return (
         select(Transaccion)
         .where(Transaccion.tenant_id == effective_tenant_id, Transaccion.deleted_at.is_(None))
-        .options(selectinload(Transaccion.fiado_items))
-        .order_by(Transaccion.created_at.desc())
+        .options(selectinload(Transaccion.fiado_items), selectinload(Transaccion.owner))
+        .order_by(Transaccion.fecha_hora.desc(), Transaccion.created_at.desc())
     )
 
 
@@ -31,11 +33,11 @@ async def _get_transaction_by_id(
     tenant_id: str | None = None,
     owner_id: str | None = None,
 ) -> Transaccion:
-    effective_tenant_id = tenant_id or owner_id
+    effective_tenant_id = as_uuid(tenant_id or owner_id) or tenant_id or owner_id
     if effective_tenant_id is None:
         raise ValueError("Se requiere tenant_id o owner_id")
     result = await db.execute(
-        _transaction_query(effective_tenant_id).where(Transaccion.id == transaction_id)
+        _transaction_query(effective_tenant_id).where(Transaccion.id == (as_uuid(transaction_id) or transaction_id))
     )
     return result.scalar_one()
 
@@ -46,20 +48,29 @@ async def get_transacciones_por_cliente(
     tenant_id: str | None = None,
     owner_id: str | None = None,
 ) -> list[Transaccion]:
-    effective_tenant_id = tenant_id or owner_id
+    effective_tenant_id = as_uuid(tenant_id or owner_id) or tenant_id or owner_id
     if effective_tenant_id is None:
         raise ValueError("Se requiere tenant_id o owner_id")
     result = await db.execute(
-        _transaction_query(effective_tenant_id).where(Transaccion.cliente_id == cliente_id)
+        _transaction_query(effective_tenant_id).where(Transaccion.cliente_id == (as_uuid(cliente_id) or cliente_id))
     )
     return result.scalars().all()
 
 
-async def get_transacciones(db: AsyncSession, tenant_id: str | None = None, owner_id: str | None = None) -> list[Transaccion]:
-    effective_tenant_id = tenant_id or owner_id
+async def get_transacciones(
+    db: AsyncSession,
+    tenant_id: str | None = None,
+    owner_id: str | None = None,
+    registrado_por: str | None = None,
+) -> list[Transaccion]:
+    """Movimientos del negocio; con `registrado_por` solo los de esa persona (T05)."""
+    effective_tenant_id = as_uuid(tenant_id or owner_id) or tenant_id or owner_id
     if effective_tenant_id is None:
         raise ValueError("Se requiere tenant_id o owner_id")
-    result = await db.execute(_transaction_query(effective_tenant_id))
+    query = _transaction_query(effective_tenant_id)
+    if registrado_por is not None:
+        query = query.where(Transaccion.owner_id == (as_uuid(registrado_por) or registrado_por))
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -71,13 +82,16 @@ async def create_fiado(
     transaccion_in: TransaccionFiadoCreate,
 ) -> Transaccion:
     transaccion = Transaccion(
-        tenant_id=tenant_id,
-        owner_id=owner_id,
+        id=uuid.uuid4(),
+        tenant_id=as_uuid(tenant_id) or tenant_id,
+        owner_id=as_uuid(owner_id) or owner_id,
         cliente_id=cliente.id,
         tipo="fiado",
         monto=transaccion_in.monto,
         nota=transaccion_in.nota,
     )
+    if transaccion_in.fecha_hora is not None:
+        transaccion.fecha_hora = transaccion_in.fecha_hora
     try:
         db.add(transaccion)
         await db.flush()
@@ -85,6 +99,7 @@ async def create_fiado(
         for item_in in transaccion_in.items:
             db.add(
                 FiadoItem(
+                    id=uuid.uuid4(),
                     transaccion_id=transaccion.id,
                     producto_id=item_in.producto_id,
                     nombre_producto=item_in.nombre_producto,
@@ -130,8 +145,9 @@ async def create_abono(
         )
 
     transaccion = Transaccion(
-        tenant_id=tenant_id,
-        owner_id=owner_id,
+        id=uuid.uuid4(),
+        tenant_id=as_uuid(tenant_id) or tenant_id,
+        owner_id=as_uuid(owner_id) or owner_id,
         cliente_id=cliente.id,
         tipo="abono",
         monto=monto,

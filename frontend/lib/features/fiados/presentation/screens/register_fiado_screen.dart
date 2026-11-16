@@ -33,6 +33,9 @@ class _RegisterFiadoScreenState extends ConsumerState<RegisterFiadoScreen> {
 
   String? _error;
   bool _success = false;
+
+  /// Fecha de la venta (HU03 · T19). Por defecto, ahora mismo.
+  DateTime? _saleDate;
   double _total = 0;
 
   @override
@@ -95,6 +98,7 @@ class _RegisterFiadoScreenState extends ConsumerState<RegisterFiadoScreen> {
             clientId: client.id,
             items: _items,
             newBalanceAfter: newBalance,
+            date: _saleDate,
           );
       await ref.read(clientsProvider.notifier).refreshClient(client.id);
       if (!mounted) return;
@@ -118,6 +122,29 @@ class _RegisterFiadoScreenState extends ConsumerState<RegisterFiadoScreen> {
     if (updatedClient != null) {
       context.push('/client-detail', extra: updatedClient);
     }
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _saleDate ?? now,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now,
+      helpText: 'Fecha de la venta',
+    );
+    if (picked == null || !mounted) return;
+    final isToday = DateUtils.isSameDay(picked, now);
+    setState(() {
+      // Hoy: se usa la hora actual. Otro día: mediodía, para evitar saltos de zona horaria.
+      _saleDate = isToday ? null : DateTime(picked.year, picked.month, picked.day, 12);
+    });
+  }
+
+  String get _saleDateLabel {
+    final date = _saleDate;
+    if (date == null) return 'Hoy';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
   @override
@@ -200,6 +227,27 @@ class _RegisterFiadoScreenState extends ConsumerState<RegisterFiadoScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               children: [
+                AppCard(
+                  onTap: _pickDate,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.event, size: 20, color: AppColors.blue),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Fecha de la venta',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.ink, fontFamily: 'Inter'),
+                        ),
+                      ),
+                      Text(
+                        _saleDateLabel,
+                        style: const TextStyle(fontSize: 14, color: AppColors.blue, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
+                      ),
+                      const Icon(Icons.chevron_right, size: 18, color: AppColors.muted),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

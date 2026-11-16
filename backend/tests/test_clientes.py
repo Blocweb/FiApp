@@ -9,9 +9,27 @@ from src.app.models.cliente import Cliente
 from src.app.routers.clientes import (
     crear_cliente,
     eliminar_cliente,
+    listar_clientes,
 )
 from src.app.schemas.cliente import ClienteCreate
 from src.app.services.cliente_service import get_clientes
+
+
+@pytest.mark.anyio
+async def test_listar_clientes_filtra_por_tenant_context():
+    mock_db = AsyncMock()
+    mock_contexto = MagicMock()
+    mock_contexto.tenant_id = "tenant-1234-uuid"
+
+    from unittest.mock import patch
+
+    with patch("src.app.routers.clientes.get_clientes", new_callable=AsyncMock) as mock_service:
+        mock_service.return_value = []
+
+        clientes = await listar_clientes(db=mock_db, contexto=mock_contexto)
+
+        mock_service.assert_called_once_with(mock_db, tenant_id="tenant-1234-uuid")
+        assert clientes == []
 
 
 @pytest.mark.anyio
@@ -20,13 +38,21 @@ async def test_crear_cliente_derive_owner_id_from_jwt():
     mock_profile = MagicMock()
     mock_profile.id = "user-1234-uuid"
 
-    cliente_in = ClienteCreate(name="Juan Pérez", phone="3001234567")
+    cliente_in = ClienteCreate(
+        name="Juan Pérez",
+        phone="3001234567",
+        identification="1036123456",
+        dataConsent=True,
+    )
 
     # Mock create_cliente service
     mock_cliente_obj = MagicMock()
     mock_cliente_obj.id = "cliente-abc-uuid"
     mock_cliente_obj.nombre = "Juan Pérez"
     mock_cliente_obj.telefono = "3001234567"
+    mock_cliente_obj.identificacion = "1036123456"
+    mock_cliente_obj.autoriza_datos = True
+    mock_cliente_obj.autoriza_datos_en = datetime.now()
     mock_cliente_obj.direccion = ""
     mock_cliente_obj.notas = ""
     mock_cliente_obj.color_hex = "#2563EB"
@@ -117,4 +143,3 @@ async def test_eliminar_cliente_con_deuda_retorna_400():
 
         assert exc_info.value.status_code == 400
         assert "saldo pendiente" in exc_info.value.detail
-

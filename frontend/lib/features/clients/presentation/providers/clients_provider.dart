@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fiapp/core/network/api_error.dart';
 import 'package:fiapp/core/providers/repository_providers.dart';
 import 'package:fiapp/features/clients/domain/entities/client.dart';
 
@@ -53,7 +54,7 @@ class ClientsNotifier extends StateNotifier<ClientsState> {
 
       state = state.copyWith(
         isLoading: false,
-        error: 'No se pudieron cargar los clientes',
+        error: apiErrorMessage(e, fallback: 'No se pudieron cargar los clientes'),
       );
     }
   }

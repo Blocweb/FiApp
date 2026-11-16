@@ -29,6 +29,9 @@ class Transaction extends Equatable {
   /// Saldo del cliente inmediatamente después de este movimiento.
   final double balanceAfter;
 
+  /// Nombre (o correo) de quien registró el movimiento (HU03 · T17).
+  final String? registeredByName;
+
   const Transaction({
     required this.id,
     required this.clientId,
@@ -40,6 +43,7 @@ class Transaction extends Equatable {
     this.paymentMethod,
     this.note,
     required this.balanceAfter,
+    this.registeredByName,
   });
 
   bool get isFiado => type == TransactionType.fiado;
@@ -56,5 +60,6 @@ class Transaction extends Equatable {
         paymentMethod,
         note,
         balanceAfter,
+        registeredByName,
       ];
 }

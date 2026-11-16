@@ -5,6 +5,8 @@ import 'package:fiapp/core/router/app_router.dart';
 import 'package:fiapp/core/theme/app_colors.dart';
 import 'package:fiapp/core/widgets/app_badge.dart';
 import 'package:fiapp/features/auth/providers/auth_provider.dart';
+import 'package:fiapp/features/users/domain/entities/app_user.dart';
+import 'package:fiapp/features/users/presentation/providers/users_provider.dart';
 
 class _SettingsItem {
   final String icon;
@@ -25,18 +27,31 @@ class _SettingsSection {
 
 /// Pantalla de ajustes: perfil, preferencias (con toggles), datos, soporte
 /// y cierre de sesión. Réplica de `SettingsScreen` del prototipo original.
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _darkMode = false;
   bool _cloudBackup = true;
 
-  List<_SettingsSection> get _sections => [
+  /// Secciones visibles según el rol (HU01 · T05).
+  List<_SettingsSection> _sections(CurrentMembership? membership) => [
+        if (membership?.isAdmin ?? false)
+          _SettingsSection(
+            title: 'Negocio',
+            items: [
+              _SettingsItem(
+                icon: '👥',
+                label: 'Usuarios y roles',
+                sub: 'Crear y desactivar trabajadores',
+                route: AppRoutes.users,
+              ),
+            ],
+          ),
         _SettingsSection(
           title: 'Mi cuenta',
           items: [
@@ -55,7 +70,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Datos',
           items: [
             _SettingsItem(icon: '📤', label: 'Exportar información', sub: 'Descargar en Excel', route: AppRoutes.exportInfo),
-            _SettingsItem(icon: '📊', label: 'Reportes', sub: 'Ver resúmenes y estadísticas', route: AppRoutes.reportes),
+            if (membership?.seesWholeBusiness ?? false)
+              _SettingsItem(icon: '📊', label: 'Reportes', sub: 'Ver resúmenes y estadísticas', route: AppRoutes.reportes),
           ],
         ),
         _SettingsSection(
@@ -84,6 +100,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final membership = ref.watch(currentMembershipProvider).valueOrNull;
+    final businessName = membership?.businessName ?? 'Mi Tienda';
+    final initials = businessName.trim().isEmpty
+        ? 'MT'
+        : businessName.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0].toUpperCase()).join();
     return Container(
       color: AppColors.bg,
       child: ListView(
@@ -109,27 +130,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       height: 56,
                       decoration: const BoxDecoration(color: AppColors.blue, shape: BoxShape.circle),
                       alignment: Alignment.center,
-                      child: const Text(
-                        'MT',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 20, fontFamily: 'Inter'),
+                      child: Text(
+                        initials,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 20, fontFamily: 'Inter'),
                       ),
                     ),
                     const SizedBox(width: 14),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Mi Tienda',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink, fontFamily: 'Inter'),
-                        ),
-                        SizedBox(height: 3),
-                        Text(
-                          'mitienda@correo.com',
-                          style: TextStyle(fontSize: 13, color: AppColors.muted, fontFamily: 'Inter'),
-                        ),
-                        SizedBox(height: 5),
-                        AppBadge(text: 'Plan gratuito', color: AppColors.blue),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            businessName,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink, fontFamily: 'Inter'),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            membership?.email ?? '',
+                            style: const TextStyle(fontSize: 13, color: AppColors.muted, fontFamily: 'Inter'),
+                          ),
+                          const SizedBox(height: 5),
+                          AppBadge(
+                            text: membership == null ? 'Cargando...' : UserRoles.label(membership.role),
+                            color: AppColors.blue,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -140,7 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             child: Column(
               children: [
-                ..._sections.map((section) {
+                ..._sections(membership).map((section) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Column(

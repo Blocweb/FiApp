@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.app.schemas.fiado_item import FiadoItemBase, FiadoItemResponse
 
@@ -15,7 +15,21 @@ class TransaccionBase(BaseModel):
 
 
 class TransaccionFiadoCreate(TransaccionBase):
+    """Venta a crédito (HU03 · T17, T19): cliente, fecha, repuestos y monto."""
+
     items: list[FiadoItemBase] = Field(..., min_length=1)
+    fecha_hora: Optional[datetime] = None
+
+    @field_validator('fecha_hora')
+    @classmethod
+    def validate_fecha(cls, value: Optional[datetime]) -> Optional[datetime]:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        if value > datetime.now(timezone.utc) + timedelta(minutes=5):
+            raise ValueError('La fecha de la venta no puede ser futura.')
+        return value
 
     @model_validator(mode='after')
     def validate_total(self):
@@ -49,6 +63,9 @@ class TransaccionResponse(BaseModel):
     fecha_hora: datetime
     created_at: datetime
     deleted_at: Optional[datetime] = None
+    # HU03 · T17: persona que registró el movimiento.
+    registrado_por: UUID = Field(..., validation_alias='owner_id')
+    registrado_por_nombre: Optional[str] = None
     items: list[FiadoItemResponse] = Field(
         default_factory=list,
         validation_alias='fiado_items',

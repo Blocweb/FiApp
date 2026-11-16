@@ -84,3 +84,12 @@ python -m pytest -q
 
 La documentación OpenAPI queda disponible en `/docs`. Las variables sensibles se
 inyectan mediante `backend/.env`; usa `backend/.env.example` como plantilla.
+
+## Ejecutar en Windows (entorno `.venv312`)
+
+```powershell
+.\.venv312\Scripts\Activate.ps1
+python --version
+# 0.0.0.0 permite que el emulador Android llegue a la API en http://10.0.2.2:8000
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```

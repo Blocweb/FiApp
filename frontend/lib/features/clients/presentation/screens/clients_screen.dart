@@ -31,10 +31,14 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final clients = ref.watch(clientsProvider).clients;
+    final clientsState = ref.watch(clientsProvider);
+    final clients = clientsState.clients;
+    // HU02 · T13: búsqueda por nombre (también por identificación o teléfono).
+    final q = _query.trim().toLowerCase();
     final filtered = clients.where((c) {
-      final q = _query.toLowerCase();
-      return c.name.toLowerCase().contains(q) || c.phone.contains(_query);
+      return c.name.toLowerCase().contains(q) ||
+          c.identification.toLowerCase().contains(q.replaceAll('.', '')) ||
+          c.phone.contains(_query.trim());
     }).toList();
 
     return Container(
@@ -68,7 +72,7 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
                       onChanged: (v) => setState(() => _query = v),
                       style: const TextStyle(fontSize: 14, fontFamily: 'Inter'),
                       decoration: const InputDecoration(
-                        hintText: 'Buscar cliente...',
+                        hintText: 'Buscar por nombre o cédula...',
                         prefixIcon: Icon(Icons.search, size: 18, color: AppColors.muted),
                         fillColor: AppColors.bg,
                         contentPadding: EdgeInsets.symmetric(vertical: 11),
@@ -78,7 +82,12 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
                 ),
               ),
               Expanded(
-                child: filtered.isEmpty
+                child: clientsState.error != null && clients.isEmpty
+                    ? _ErrorState(
+                        message: clientsState.error!,
+                        onRetry: () => ref.read(clientsProvider.notifier).loadClients(),
+                      )
+                    : filtered.isEmpty
                     ? _EmptyState(query: _query)
                     : ListView(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
@@ -174,6 +183,36 @@ class _ClientTile extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline, size: 40, color: AppColors.muted),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.muted, fontFamily: 'Inter', fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            TextButton(onPressed: onRetry, child: const Text('Reintentar')),
+          ],
+        ),
       ),
     );
   }

@@ -211,6 +211,7 @@ class _HistoryTile extends StatelessWidget {
     final extra = [
       if (tx.items != null) '${tx.items!.length} prod.',
       if (tx.paymentMethod != null) tx.paymentMethod!,
+      if (tx.registeredByName != null) 'Por ${tx.registeredByName}',
     ].join(' · ');
 
     return AppCard(

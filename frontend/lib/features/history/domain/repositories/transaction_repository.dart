@@ -16,6 +16,7 @@ abstract class TransactionRepository {
     required String clientId,
     required List<FiadoItem> items,
     required double newBalanceAfter,
+    DateTime? date,
   });
 
   /// Registra un nuevo abono para [clientId].

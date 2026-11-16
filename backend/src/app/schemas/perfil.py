@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 class PerfilResponse(BaseModel):
     id: UUID
     nombre_negocio: str
+    nombre: Optional[str] = None
     email: EmailStr
     plan: str
     rol: str
@@ -21,5 +22,6 @@ class PerfilResponse(BaseModel):
 
 class PerfilUpdate(BaseModel):
     nombre_negocio: Optional[str] = Field(None, max_length=150)
+    nombre: Optional[str] = Field(None, max_length=150)
     modo_oscuro: Optional[bool] = None
     respaldo_nube: Optional[bool] = None

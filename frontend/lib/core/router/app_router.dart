@@ -21,6 +21,7 @@ import 'package:fiapp/features/settings/presentation/screens/profile_screen.dart
 import 'package:fiapp/features/settings/presentation/screens/reportes_screen.dart';
 import 'package:fiapp/features/settings/presentation/screens/settings_screen.dart';
 import 'package:fiapp/features/splash/presentation/screens/splash_screen.dart';
+import 'package:fiapp/features/users/presentation/screens/users_screen.dart';
 
 /// Nombres de ruta usados en toda la app, para evitar strings sueltos.
 class AppRoutes {
@@ -45,6 +46,7 @@ class AppRoutes {
   static const changePassword = '/settings/change-password';
   static const reportes = '/settings/reportes';
   static const exportInfo = '/settings/export-info';
+  static const users = '/settings/users';
 }
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -136,6 +138,10 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: 'export-info',
               builder: (context, state) => const ExportInfoScreen(),
+            ),
+            GoRoute(
+              path: 'users',
+              builder: (context, state) => const UsersScreen(),
             ),
           ],
         ),

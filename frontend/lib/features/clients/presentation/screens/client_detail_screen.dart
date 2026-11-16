@@ -378,7 +378,10 @@ class _TimelineItem extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${tx.date} · ${tx.time}',
+                              [
+                                '${tx.date} · ${tx.time}',
+                                if (tx.registeredByName != null) 'Por ${tx.registeredByName}',
+                              ].join(' · '),
                               style: const TextStyle(fontSize: 12, color: AppColors.muted, fontFamily: 'Inter'),
                             ),
                           ],

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     database_url: str
     supabase_url: str
     supabase_anon_key: str
+    # Solo la usa la API (nunca la app) para crear cuentas de trabajadores (HU01).
+    supabase_service_role_key: str | None = None
     cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080"
     sql_echo: bool = False
 

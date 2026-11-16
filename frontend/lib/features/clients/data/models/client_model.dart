@@ -23,18 +23,21 @@ class ClientModel extends Client {
   const ClientModel({
     required super.id,
     required super.name,
+    super.identification,
     required super.phone,
     required super.address,
     required super.notes,
     required super.color,
     required super.balance,
     required super.lastMovement,
+    super.dataConsent,
   });
 
   factory ClientModel.fromJson(Map<String, dynamic> json) {
     return ClientModel(
       id: json['id'] as String,
       name: json['name'] as String,
+      identification: json['identification'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
       address: json['address'] as String? ?? '',
       notes: json['notes'] as String? ?? '',
@@ -43,16 +46,19 @@ class ClientModel extends Client {
       lastMovement: json['lastMovement'] != null
           ? DateTime.tryParse(json['lastMovement'].toString())
           : null,
+      dataConsent: json['dataConsent'] as bool? ?? false,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'name': name,
+      if (identification.isNotEmpty) 'identification': identification,
       'phone': phone,
       'address': address,
       'notes': notes,
       'colorHex': _colorToHex(color),
+      if (dataConsent) 'dataConsent': true,
     };
   }
 
@@ -60,12 +66,14 @@ class ClientModel extends Client {
     return ClientModel(
       id: client.id,
       name: client.name,
+      identification: client.identification,
       phone: client.phone,
       address: client.address,
       notes: client.notes,
       color: client.color,
       balance: client.balance,
       lastMovement: client.lastMovement,
+      dataConsent: client.dataConsent,
     );
   }
 

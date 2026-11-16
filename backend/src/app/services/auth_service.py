@@ -84,9 +84,12 @@ async def update_profile(
     modo_oscuro: Optional[bool],
     respaldo_nube: Optional[bool],
     db: AsyncSession,
+    nombre: Optional[str] = None,
 ) -> Profile:
     if nombre_negocio is not None:
         profile.nombre_negocio = nombre_negocio
+    if nombre is not None:
+        profile.nombre = nombre.strip() or None
     if modo_oscuro is not None:
         profile.modo_oscuro = modo_oscuro
     if respaldo_nube is not None:

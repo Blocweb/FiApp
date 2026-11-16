@@ -7,8 +7,12 @@ class ClientApiService {
 
   ClientApiService([Dio? dio]) : _dio = dio ?? ApiClient.instance.dio;
 
-  Future<List<ClientModel>> getClients() async {
-    final resp = await _dio.get('/clientes/');
+  Future<List<ClientModel>> getClients({String? query}) async {
+    final q = query?.trim();
+    final resp = await _dio.get(
+      '/clientes/',
+      queryParameters: q == null || q.isEmpty ? null : {'q': q},
+    );
     final data = resp.data as List<dynamic>;
     return data.map((e) => ClientModel.fromJson(e as Map<String, dynamic>)).toList();
   }

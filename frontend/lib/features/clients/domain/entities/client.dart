@@ -7,6 +7,9 @@ import 'package:equatable/equatable.dart';
 class Client extends Equatable {
   final String id;
   final String name;
+
+  /// Documento del cliente (cédula/NIT), sin puntos ni espacios (HU02).
+  final String identification;
   final String phone;
   final String address;
   final String notes;
@@ -20,36 +23,45 @@ class Client extends Equatable {
   /// Fecha del último movimiento.
   final DateTime? lastMovement;
 
+  /// Autorización de tratamiento de datos (Ley 1581 de 2012).
+  final bool dataConsent;
+
   const Client({
     required this.id,
     required this.name,
+    this.identification = '',
     required this.phone,
     required this.address,
     required this.notes,
     required this.color,
     required this.balance,
     required this.lastMovement,
+    this.dataConsent = false,
   });
 
   Client copyWith({
     String? id,
     String? name,
+    String? identification,
     String? phone,
     String? address,
     String? notes,
     int? color,
     double? balance,
     DateTime? lastMovement,
+    bool? dataConsent,
   }) {
     return Client(
       id: id ?? this.id,
       name: name ?? this.name,
+      identification: identification ?? this.identification,
       phone: phone ?? this.phone,
       address: address ?? this.address,
       notes: notes ?? this.notes,
       color: color ?? this.color,
       balance: balance ?? this.balance,
       lastMovement: lastMovement ?? this.lastMovement,
+      dataConsent: dataConsent ?? this.dataConsent,
     );
   }
 
@@ -57,11 +69,13 @@ class Client extends Equatable {
   List<Object?> get props => [
         id,
         name,
+        identification,
         phone,
         address,
         notes,
         color,
         balance,
         lastMovement,
+        dataConsent,
       ];
 }

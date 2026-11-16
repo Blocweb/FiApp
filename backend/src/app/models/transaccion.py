@@ -27,6 +27,17 @@ class Transaccion(Base):
     fiado_items = relationship("FiadoItem", back_populates="transaccion", cascade="all, delete-orphan")
     owner = relationship("Profile", back_populates="transacciones", foreign_keys=[owner_id])
 
+    @property
+    def registrado_por_nombre(self) -> str | None:
+        """HU03 (T17): nombre de quien registró el movimiento.
+
+        Requiere que la relación ``owner`` esté precargada (``selectinload``).
+        """
+        owner = self.__dict__.get("owner")
+        if owner is None:
+            return None
+        return owner.nombre or owner.email
+
     __table_args__ = (
         ForeignKeyConstraint(
             ["tenant_id", "cliente_id"],

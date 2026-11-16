@@ -24,11 +24,13 @@ class TransactionRepositoryRemoteImpl implements TransactionRepository {
     required String clientId,
     required List<FiadoItem> items,
     required double newBalanceAfter,
+    DateTime? date,
   }) {
     final amount = items.fold<double>(0, (sum, item) => sum + item.subtotal);
     return _service.registerFiado({
       'cliente_id': clientId,
       'monto': amount,
+      if (date != null) 'fecha_hora': date.toUtc().toIso8601String(),
       'items': items
           .map(
             (item) => {

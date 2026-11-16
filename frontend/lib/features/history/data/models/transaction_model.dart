@@ -31,6 +31,7 @@ class TransactionModel extends Transaction {
     super.paymentMethod,
     super.note,
     required super.balanceAfter,
+    super.registeredByName,
   });
 
   static double _parseAmount(dynamic value) {
@@ -77,6 +78,7 @@ class TransactionModel extends Transaction {
       paymentMethod: json['metodo_pago_id']?.toString(),
       note: json['nota'] as String?,
       balanceAfter: _parseAmount(json['saldo_posterior']),
+      registeredByName: json['registrado_por_nombre'] as String?,
     );
   }
 
@@ -109,6 +111,7 @@ class TransactionModel extends Transaction {
       paymentMethod: tx.paymentMethod,
       note: tx.note,
       balanceAfter: tx.balanceAfter,
+      registeredByName: tx.registeredByName,
     );
   }
 }

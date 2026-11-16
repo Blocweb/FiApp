@@ -22,6 +22,9 @@ Thumbs.db
 .project
 .settings/
 .vscode/
+!.vscode/
+.vscode/*
+!.vscode/tasks.json
 
 # Environment / secrets
 .env

@@ -5,7 +5,7 @@ de acceso se toma en la dependencia de contexto, que comprueba la membresía
 activa y el estado del tenant antes de conceder acceso.
 """
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,3 +69,44 @@ async def get_membresia(
 def tenant_es_operativo(tenant: Tenant) -> bool:
     """Indica si el tenant puede operar mediante el contexto en esta fase."""
     return tenant.estado in ESTADOS_TENANT_OPERATIVOS
+
+
+async def tiene_membresias(db: AsyncSession, profile_id: UUID) -> bool:
+    """Indica si el usuario tiene alguna membresía, activa o no."""
+    query = select(TenantUsuario.id).where(TenantUsuario.profile_id == profile_id).limit(1)
+    result = await db.execute(query)
+    return result.first() is not None
+
+
+async def crear_tenant_personal(db: AsyncSession, profile) -> TenantUsuario:
+    """Crea el negocio propio de un usuario recién registrado.
+
+    `fn_handle_new_user` solo crea el profile, así que un dueño que se registra
+    desde la app no tendría negocio. Se usa el mismo criterio de la migración
+    002: el tenant personal usa el id del profile y el usuario queda como
+    propietario. Solo debe llamarse cuando el usuario no tiene ninguna
+    membresía; un trabajador desactivado conserva su membresía inactiva y
+    nunca recibe un negocio propio.
+    """
+    tenant = await db.get(Tenant, profile.id)
+    if tenant is None:
+        tenant = Tenant(
+            id=profile.id,
+            nombre_comercial=(profile.nombre_negocio or "Mi tienda")[:150],
+            estado="activo",
+        )
+        db.add(tenant)
+        await db.flush()
+    membresia = TenantUsuario(id=uuid4(), tenant_id=tenant.id, profile_id=profile.id, rol="propietario", activo=True)
+    db.add(membresia)
+    await db.commit()
+    return membresia
+
+
+async def membresias_activas_o_tenant_personal(db: AsyncSession, profile) -> list[TenantUsuario]:
+    """Membresías activas; si el usuario es nuevo, le crea su negocio propio."""
+    membresias = await listar_membresias_activas(db, profile_id=profile.id)
+    if not membresias and not await tiene_membresias(db, profile_id=profile.id):
+        await crear_tenant_personal(db, profile)
+        membresias = await listar_membresias_activas(db, profile_id=profile.id)
+    return membresias

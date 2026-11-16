@@ -36,9 +36,15 @@ class TransactionsNotifier extends StateNotifier<TransactionsState> {
 
   Future<void> loadTransactions() async {
     state = state.copyWith(isLoading: true);
-    final repo = ref.read(transactionRepositoryProvider);
-    final txs = await repo.getTransactions();
-    state = state.copyWith(transactions: txs, isLoading: false);
+    try {
+      final repo = ref.read(transactionRepositoryProvider);
+      final txs = await repo.getTransactions();
+      if (!mounted) return;
+      state = state.copyWith(transactions: txs, isLoading: false);
+    } catch (_) {
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   List<Transaction> byClient(String clientId) {
@@ -49,12 +55,14 @@ class TransactionsNotifier extends StateNotifier<TransactionsState> {
     required String clientId,
     required List<FiadoItem> items,
     required double newBalanceAfter,
+    DateTime? date,
   }) async {
     final repo = ref.read(transactionRepositoryProvider);
     final tx = await repo.registerFiado(
       clientId: clientId,
       items: items,
       newBalanceAfter: newBalanceAfter,
+      date: date,
     );
     state = state.copyWith(transactions: [tx, ...state.transactions]);
     return tx;

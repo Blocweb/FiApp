@@ -6,8 +6,9 @@ import 'package:fiapp/features/clients/domain/entities/client.dart';
 /// nunca de la implementación concreta. Esto permite sustituir la fuente de
 /// datos (mock local -> API REST en ASP.NET Core) sin tocar la UI.
 abstract class ClientRepository {
-  /// Obtiene todos los clientes de la tienda.
-  Future<List<Client>> getClients();
+  /// Obtiene los clientes del negocio; [query] filtra por nombre o
+  /// identificación (HU02 · T13).
+  Future<List<Client>> getClients({String? query});
 
   /// Obtiene un cliente por su id, o `null` si no existe.
   Future<Client?> getClientById(String id);

@@ -33,7 +33,7 @@ from src.app.models.profile import Profile
 from src.app.services.auth_service import get_current_profile, get_current_user
 from src.app.services.tenant_service import (
     get_membresia,
-    listar_membresias_activas,
+    membresias_activas_o_tenant_personal,
     tenant_es_operativo,
 )
 
@@ -93,7 +93,7 @@ async def _resolver_sin_contexto_postgres(
     ``set_rls_context``.
     """
     if x_tenant_id is None or not x_tenant_id.strip():
-        membresias = await listar_membresias_activas(db, profile_id=profile.id)
+        membresias = await membresias_activas_o_tenant_personal(db, profile)
         if not membresias:
             raise _tenant_no_autorizado
         if len(membresias) > 1:
@@ -154,7 +154,7 @@ async def get_current_tenant_context(
         )
         return context
     if x_tenant_id is None or not x_tenant_id.strip():
-        membresias = await listar_membresias_activas(db, profile_id=profile.id)
+        membresias = await membresias_activas_o_tenant_personal(db, profile)
         if not membresias:
             raise _tenant_no_autorizado
         if len(membresias) > 1:

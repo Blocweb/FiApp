@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.app.core.permissions import ve_todo_el_negocio
 from src.app.core.tenant_context import TenantContext
 from src.app.database.connection import get_db
 from src.app.dependencies.tenant import get_current_tenant_context
@@ -25,7 +26,14 @@ async def listar_transacciones(
     db: AsyncSession = Depends(get_db),
     contexto: TenantContext = Depends(get_current_tenant_context),
 ):
-    return await get_transacciones(db, tenant_id=str(contexto.tenant_id))
+    # T05: el administrador ve todo; el trabajador solo lo que él registró.
+    if ve_todo_el_negocio(contexto):
+        return await get_transacciones(db, tenant_id=str(contexto.tenant_id))
+    return await get_transacciones(
+        db,
+        tenant_id=str(contexto.tenant_id),
+        registrado_por=str(contexto.profile_id),
+    )
 
 
 @router.post("/fiado", response_model=TransaccionResponse, status_code=status.HTTP_201_CREATED)

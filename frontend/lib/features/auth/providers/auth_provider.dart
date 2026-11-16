@@ -4,6 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fiapp/core/debug/session_debug_log.dart';
 import '../data/auth_repository.dart';
 import '../../profile/presentation/providers/profile_provider.dart';
+import 'package:fiapp/features/clients/presentation/providers/clients_provider.dart';
+import 'package:fiapp/features/history/presentation/providers/transactions_provider.dart';
+import 'package:fiapp/features/users/presentation/providers/users_provider.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository();
@@ -85,7 +88,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         error: null,
       );
 
-      _ref.invalidate(profileProvider);
+      _invalidateSessionData();
       logSupabaseSessionSnapshot('login.after profileProvider invalidate');
     } catch (error) {
       logSupabaseSessionSnapshot('login.error', extra: {'error': error});
@@ -123,7 +126,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
               ? 'No se pudo crear la cuenta. Revisa los datos e intenta de nuevo.'
               : 'Cuenta creada, pero Supabase no devolvio una sesion activa. Inicia sesion para continuar.',
         );
-        _ref.invalidate(profileProvider);
+        _invalidateSessionData();
         return;
       }
 
@@ -134,7 +137,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         error: null,
       );
 
-      _ref.invalidate(profileProvider);
+      _invalidateSessionData();
       logSupabaseSessionSnapshot('register.after profileProvider invalidate');
     } catch (error) {
       logSupabaseSessionSnapshot('register.error', extra: {'error': error});
@@ -159,8 +162,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
       user: null,
     );
 
-    _ref.invalidate(profileProvider);
+    _invalidateSessionData();
     logSupabaseSessionSnapshot('logout.after profileProvider invalidate');
+  }
+
+  /// Descarta los datos de la sesión anterior (perfil, rol, clientes y
+  /// movimientos) para que un usuario nunca vea los datos de otro.
+  void _invalidateSessionData() {
+    _ref.invalidate(profileProvider);
+    _ref.invalidate(currentMembershipProvider);
+    _ref.invalidate(clientsProvider);
+    _ref.invalidate(transactionsProvider);
   }
 
   User? currentUser() => _repository.currentUser();
